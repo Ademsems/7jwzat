@@ -90,9 +90,10 @@ export default function BookingsPage() {
     const svcMap: Record<string, string> = {};
     (svcRows ?? []).forEach((s: { id: string; name: string }) => { svcMap[s.id] = s.name; });
 
-    setBookings((bookingRows ?? []).map((b) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setBookings((bookingRows ?? []).map((b: any) => ({
       ...b,
-      service_name: svcMap[b.service_id] ?? "Unknown Service",
+      service_name: svcMap[b.service_id as string] ?? "Unknown Service",
     })));
   }
 
