@@ -1,6 +1,11 @@
 ﻿import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazily create the client inside each function so this module can be
+// imported during Next.js build without RESEND_API_KEY being present.
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
+
 const FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@resend.dev";
 
 function fmtDate(s: string) {
@@ -78,7 +83,7 @@ export async function sendCustomerEmail(opts: {
 </body>
 </html>`;
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: customerEmail,
     subject: `Your Appointment is Confirmed - ${businessName}`,
@@ -158,7 +163,7 @@ export async function sendOwnerEmail(opts: {
 </body>
 </html>`;
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to: ownerEmail,
     subject: `New Booking: ${serviceName} from ${customerName}`,
