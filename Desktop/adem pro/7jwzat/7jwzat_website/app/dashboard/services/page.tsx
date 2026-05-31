@@ -14,8 +14,20 @@ interface Service {
 
 const EMPTY_FORM = { name: "", duration: "", price: "" };
 
+function getErrorMessage(err: unknown): string {
+  if (err && typeof err === "object") {
+    if ("message" in err && typeof (err as { message: unknown }).message === "string") {
+      return (err as { message: string }).message;
+    }
+    if ("error_description" in err) return String((err as { error_description: unknown }).error_description);
+  }
+  if (typeof err === "string") return err;
+  return "Something went wrong.";
+}
+
 export default function ServicesPage() {
   const router = useRouter();
+  const [userId, setUserId] = useState<string | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -31,6 +43,7 @@ export default function ServicesPage() {
   async function checkAuthAndLoad() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/auth/login"); return; }
+    setUserId(session.user.id);
     await fetchServices();
     setLoading(false);
   }
@@ -40,7 +53,11 @@ export default function ServicesPage() {
       .from("services")
       .select("*")
       .order("created_at", { ascending: true });
-    if (!error && data) setServices(data);
+    if (error) {
+      setMessage({ type: "error", text: getErrorMessage(error) });
+    } else if (data) {
+      setServices(data);
+    }
   }
 
   function validate() {
@@ -56,31 +73,42 @@ export default function ServicesPage() {
     e.preventDefault();
     const err = validate();
     if (err) { setMessage({ type: "error", text: err }); return; }
+    if (!userId) return;
     setSaving(true);
     setMessage(null);
-    try {
-      const payload = {
-        name: form.name.trim(),
-        duration: Number(form.duration),
-        price: Number(form.price),
-      };
-      if (editingId) {
-        const { error } = await supabase.from("services").update(payload).eq("id", editingId);
-        if (error) throw error;
-        setMessage({ type: "success", text: "Service updated successfully." });
+
+    const payload = {
+      name: form.name.trim(),
+      duration: Number(form.duration),
+      price: Number(form.price),
+      user_id: userId,
+    };
+
+    if (editingId) {
+      const { error } = await supabase
+        .from("services")
+        .update({ name: payload.name, duration: payload.duration, price: payload.price })
+        .eq("id", editingId);
+      if (error) {
+        setMessage({ type: "error", text: getErrorMessage(error) });
       } else {
-        const { error } = await supabase.from("services").insert(payload);
-        if (error) throw error;
-        setMessage({ type: "success", text: "Service added successfully." });
+        setMessage({ type: "success", text: "Service updated successfully." });
+        setForm(EMPTY_FORM);
+        setEditingId(null);
+        await fetchServices();
       }
-      setForm(EMPTY_FORM);
-      setEditingId(null);
-      await fetchServices();
-    } catch (err: unknown) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Something went wrong." });
-    } finally {
-      setSaving(false);
+    } else {
+      const { error } = await supabase.from("services").insert(payload);
+      if (error) {
+        setMessage({ type: "error", text: getErrorMessage(error) });
+      } else {
+        setMessage({ type: "success", text: "Service added successfully." });
+        setForm(EMPTY_FORM);
+        await fetchServices();
+      }
     }
+
+    setSaving(false);
   }
 
   function startEdit(service: Service) {
@@ -101,7 +129,7 @@ export default function ServicesPage() {
     setDeletingId(service.id);
     const { error } = await supabase.from("services").delete().eq("id", service.id);
     if (error) {
-      setMessage({ type: "error", text: error.message });
+      setMessage({ type: "error", text: getErrorMessage(error) });
     } else {
       setMessage({ type: "success", text: `"${service.name}" deleted.` });
       await fetchServices();
