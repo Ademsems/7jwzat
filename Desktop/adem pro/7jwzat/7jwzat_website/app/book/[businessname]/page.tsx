@@ -83,6 +83,8 @@ function MiniCalendar({ selected, onSelect, minDate, maxDate }:
 
 /* ─── Main Page ─────────────────────────────────── */
 const EMPTY_FORM = { name: "", email: "", phone: "", note: "" };
+const EMPTY_ERRORS = { name: "", email: "", phone: "" };
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function BookPage({ params }: { params: { businessname: string } }) {
   const businessSlug = decodeURIComponent(params.businessname);
@@ -101,6 +103,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
 
   // Booking form
   const [form, setForm] = useState(EMPTY_FORM);
+  const [fieldErrors, setFieldErrors] = useState(EMPTY_ERRORS);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -137,18 +140,29 @@ export default function BookPage({ params }: { params: { businessname: string } 
     else { setClosedDay(false); setSlots(generateSlots(dayHours.start_time, dayHours.end_time)); }
   }
 
-  function validateForm(): string | null {
-    if (!form.name.trim()) return "Your name is required.";
-    if (!form.email.trim() || !form.email.includes("@")) return "A valid email is required.";
-    if (!form.phone.trim()) return "Your phone number is required.";
-    return null;
+  function validateForm(): boolean {
+    const errs = { name: "", email: "", phone: "" };
+    if (!form.name.trim() || form.name.trim().length < 2) errs.name = "Full name required (min 2 characters).";
+    if (!EMAIL_RE.test(form.email.trim())) errs.email = "Please enter a valid email address.";
+    const digits = form.phone.replace(/\D/g, "");
+    if (digits.length < 10) errs.phone = "Phone must have at least 10 digits.";
+    setFieldErrors(errs);
+    return !errs.name && !errs.email && !errs.phone;
+  }
+  function handleFieldChange(field: "name"|"email"|"phone"|"note", val: string) {
+    setForm(f => ({...f, [field]: val}));
+    if (field === "name") setFieldErrors(e => ({...e, name: val.trim().length >= 2 ? "" : "Full name required (min 2 characters)."}));
+    if (field === "email") setFieldErrors(e => ({...e, email: EMAIL_RE.test(val.trim()) ? "" : "Please enter a valid email address."}));
+    if (field === "phone") {
+      const d = val.replace(/\D/g, "");
+      setFieldErrors(e => ({...e, phone: d.length >= 10 ? "" : "Phone must have at least 10 digits."}));
+    }
   }
 
   async function handleBooking(e: React.FormEvent) {
     e.preventDefault();
     if (!business || !selectedService || !selectedDate || !selectedTime) return;
-    const err = validateForm();
-    if (err) { setFormError(err); return; }
+    if (!validateForm()) return;
     setFormError("");
     setSubmitting(true);
 
@@ -302,6 +316,18 @@ export default function BookPage({ params }: { params: { businessname: string } 
 
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
 
+        {/* Edge-case banners */}
+        {!loading && services.length === 0 && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm mb-6">
+            This business currently has no services available. Please check back later.
+          </div>
+        )}
+        {!loading && hours.length === 0 && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm mb-6">
+            Business hours have not been configured yet. Please check back later.
+          </div>
+        )}
+
         {/* Step 1: Service */}
         <section>
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
@@ -309,7 +335,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
             Select a Service
           </h2>
           {services.length === 0
-            ? <p className="text-gray-400 text-sm">No services available.</p>
+            ? <p className="text-gray-400 text-sm">No services available. Please check back later.</p>
             : <div className="grid gap-3 sm:grid-cols-2">
                 {services.map(svc => (
                   <button key={svc.id} onClick={() => { setSelectedService(svc.id === selectedService?.id ? null : svc); setFormError(""); }}
@@ -381,31 +407,29 @@ export default function BookPage({ params }: { params: { businessname: string } 
               )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                <input type="text" required value={form.name}
-                  onChange={e => setForm({...form, name: e.target.value})}
-                  placeholder="Ahmed Ali"
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <input type="text" value={form.name} onChange={e => handleFieldChange("name", e.target.value)}
+                  placeholder="Ahmed Ali" minLength={2} maxLength={80}
+                  className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${fieldErrors.name ? "border-red-400 bg-red-50" : "border-gray-300"}`} />
+                {fieldErrors.name && <p className="text-red-600 text-xs mt-1">{fieldErrors.name}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
-                <input type="email" required value={form.email}
-                  onChange={e => setForm({...form, email: e.target.value})}
+                <input type="email" value={form.email} onChange={e => handleFieldChange("email", e.target.value)}
                   placeholder="ahmed@example.com"
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${fieldErrors.email ? "border-red-400 bg-red-50" : "border-gray-300"}`} />
+                {fieldErrors.email && <p className="text-red-600 text-xs mt-1">{fieldErrors.email}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
-                <input type="tel" required value={form.phone}
-                  onChange={e => setForm({...form, phone: e.target.value})}
+                <input type="tel" value={form.phone} onChange={e => handleFieldChange("phone", e.target.value)}
                   placeholder="+971 50 123 4567"
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${fieldErrors.phone ? "border-red-400 bg-red-50" : "border-gray-300"}`} />
+                {fieldErrors.phone && <p className="text-red-600 text-xs mt-1">{fieldErrors.phone}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Special Requests <span className="text-gray-400 font-normal">(optional)</span></label>
-                <textarea value={form.note}
-                  onChange={e => setForm({...form, note: e.target.value})}
-                  placeholder="Any notes for the business..."
-                  rows={3}
+                <textarea value={form.note} onChange={e => handleFieldChange("note", e.target.value)}
+                  placeholder="Any notes for the business..." rows={3}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
               <button type="submit" disabled={submitting}
