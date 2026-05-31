@@ -13,7 +13,7 @@ interface UserProfile {
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: "Home" },
   { label: "Services", href: "/dashboard/services", icon: "Scissors" },
-  { label: "Business Hours", href: "/dashboard/hours", icon: "Clock" },
+  { label: "Business Hours", href: "/dashboard/business-hours", icon: "Clock" },
   { label: "Bookings", href: "/dashboard/bookings", icon: "Calendar" },
 ];
 
@@ -116,7 +116,7 @@ export default function DashboardPage() {
             <h3 className="font-semibold text-gray-700 mb-3">Business Hours</h3>
             <p className="text-sm text-gray-400">
               Set your working hours in{" "}
-              <Link href="/dashboard/hours" className="text-indigo-600 hover:underline">
+              <Link href="/dashboard/business-hours" className="text-indigo-600 hover:underline">
                 Business Hours
               </Link>
               .
