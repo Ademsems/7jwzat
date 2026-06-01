@@ -36,7 +36,7 @@ export default function SettingsPage() {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/auth/login"); return; }
-      const { data } = await supabase.from("users").select("email, business_name, phone_number, created_at").eq("id", session.user.id).single();
+      const { data } = await supabase.from("users").select("*").eq("id", session.user.id).single();
       setProfile(data ?? { email: session.user.email ?? "", business_name: "My Business" });
       setLoading(false);
     }
