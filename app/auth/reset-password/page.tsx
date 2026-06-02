@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import type { AuthChangeEvent } from "@supabase/supabase-js";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -14,7 +15,7 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     // Supabase handles the token from the URL hash automatically
-    supabase.auth.onAuthStateChange((event) => {
+    supabase.auth.onAuthStateChange((event: AuthChangeEvent) => {
       if (event === "PASSWORD_RECOVERY") {
         setSessionReady(true);
       }

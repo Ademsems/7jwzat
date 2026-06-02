@@ -124,7 +124,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
     const { data: users, error } = await supabase
       .from("users").select("id,business_name,email");
     if (error || !users) { setNotFound(true); setLoading(false); return; }
-    const biz = users.find(u => slugifyBusinessName(u.business_name) === businessSlug);
+    const biz = users.find((u: Business) => slugifyBusinessName(u.business_name) === businessSlug);
     if (!biz) { setNotFound(true); setLoading(false); return; }
     setBusiness(biz);
     const [svcRes, hrRes] = await Promise.all([
