@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { Navbar } from "@/components/Navbar";
 
 export default function TermsPage() {
   return (
-    <main className="min-h-screen bg-white">
+    <>
+      <Navbar />
+      <main className="min-h-screen bg-white">
       <div className="max-w-2xl mx-auto px-4 py-16">
         <Link href="/" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium mb-8 inline-block">
           ← Back to home
@@ -18,5 +21,6 @@ export default function TermsPage() {
         </div>
       </div>
     </main>
+    </>
   );
 }

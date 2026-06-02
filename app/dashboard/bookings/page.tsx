@@ -1,11 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-/* ─── Types ───────────────────────────────────────────── */
 type Status = "pending" | "confirmed" | "completed" | "cancelled";
 
 interface Booking {
@@ -21,7 +20,6 @@ interface Booking {
   service_name: string;
 }
 
-/* ─── Helpers ─────────────────────────────────────────── */
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-AE", {
     weekday: "short", month: "short", day: "numeric", year: "numeric",
@@ -44,14 +42,6 @@ const STATUS_STYLES: Record<Status, string> = {
   cancelled: "bg-red-100    text-red-800    border-red-200",
 };
 
-const NAV = [
-  { label: "Dashboard",      href: "/dashboard" },
-  { label: "Services",       href: "/dashboard/services" },
-  { label: "Business Hours", href: "/dashboard/business-hours" },
-  { label: "Bookings",       href: "/dashboard/bookings" },
-];
-
-/* ─── Page ────────────────────────────────────────────── */
 export default function BookingsPage() {
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -66,18 +56,14 @@ export default function BookingsPage() {
   async function init() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/auth/login"); return; }
-
-    // Grab business name for the link
     const { data: profile } = await supabase
       .from("users").select("business_name").eq("id", session.user.id).single();
     if (profile) setBusinessName(profile.business_name);
-
     await loadBookings();
     setLoading(false);
   }
 
   async function loadBookings() {
-    // Fetch bookings + services in parallel
     const { data: bookingRows, error: bErr } = await supabase
       .from("bookings")
       .select("*")
@@ -99,8 +85,7 @@ export default function BookingsPage() {
 
   async function handleStatusChange(id: string, status: Status) {
     setUpdatingId(id);
-    const { error: upErr } = await supabase
-      .from("bookings").update({ status }).eq("id", id);
+    const { error: upErr } = await supabase.from("bookings").update({ status }).eq("id", id);
     if (upErr) { setError(getErr(upErr)); }
     else { setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b)); }
     setUpdatingId(null);
@@ -122,134 +107,96 @@ export default function BookingsPage() {
   );
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col shrink-0">
-        <div className="px-6 py-6 border-b">
-          <h1 className="text-2xl font-bold text-indigo-700">7jwzat</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Booking System</p>
-        </div>
-        <nav className="flex-1 px-4 py-6 space-y-1">
-          {NAV.map(item => (
-            <Link key={item.href} href={item.href}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
-                item.href === "/dashboard/bookings"
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-gray-600 hover:bg-indigo-50 hover:text-indigo-700"
-              }`}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="px-4 py-4 border-t">
-          <button onClick={async () => { await supabase.auth.signOut(); router.push("/"); }}
-            className="w-full text-left px-4 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition text-sm font-medium">
-            Logout
-          </button>
-        </div>
-      </aside>
+    <main className="flex-1 p-8 min-w-0">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-gray-800">Your Bookings</h2>
+        <p className="text-gray-500 text-sm mt-1">Manage all customer bookings and appointments.</p>
+      </div>
 
-      {/* Main */}
-      <main className="flex-1 p-8 min-w-0">
-        {/* Header */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-800">Your Bookings</h2>
-          <p className="text-gray-500 text-sm mt-1">Manage all customer bookings and appointments.</p>
-        </div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-6 text-sm">{error}</div>
+      )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-6 text-sm">{error}</div>
-        )}
-
-        {/* Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          {bookings.length === 0 ? (
-            <div className="p-12 text-center">
-              <p className="text-gray-400 text-sm mb-4">No bookings yet.</p>
-              {businessName && (
-                <Link
-                  href={`/book/${encodeURIComponent(businessName)}`}
-                  className="text-indigo-600 text-sm hover:underline font-medium">
-                  Share your booking page →
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Customer</th>
-                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Service</th>
-                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Date & Time</th>
-                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Contact</th>
-                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Status</th>
-                    <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Actions</th>
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        {bookings.length === 0 ? (
+          <div className="p-12 text-center">
+            <p className="text-gray-400 text-sm mb-4">No bookings yet.</p>
+            {businessName && (
+              <Link
+                href={`/book/${encodeURIComponent(businessName)}`}
+                className="text-emerald-600 text-sm hover:underline font-medium">
+                Share your booking page →
+              </Link>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Customer</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Service</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Date & Time</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Contact</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Status</th>
+                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {bookings.map(b => (
+                  <tr key={b.id} className="hover:bg-gray-50 transition">
+                    <td className="px-6 py-4">
+                      <p className="font-medium text-gray-800">{b.customer_name}</p>
+                      {b.notes && (
+                        <p className="text-xs text-gray-400 mt-0.5 max-w-[200px] truncate" title={b.notes}>
+                          📝 {b.notes}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700">{b.service_name}</td>
+                    <td className="px-6 py-4">
+                      <p className="text-gray-700">{fmtDate(b.booking_date)}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{fmtTime(b.booking_time)}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-gray-700">{b.customer_email}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{b.customer_phone}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <select
+                        value={b.status}
+                        disabled={updatingId === b.id}
+                        onChange={e => handleStatusChange(b.id, e.target.value as Status)}
+                        className={`text-xs font-semibold px-2 py-1 rounded-full border cursor-pointer focus:outline-none disabled:opacity-60 ${STATUS_STYLES[b.status]}`}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => handleDelete(b)}
+                        disabled={deletingId === b.id}
+                        className="text-xs font-medium text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-60 transition">
+                        {deletingId === b.id ? "Deleting..." : "🗑️ Delete"}
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {bookings.map(b => (
-                    <tr key={b.id} className="hover:bg-gray-50 transition">
-                      {/* Customer */}
-                      <td className="px-6 py-4">
-                        <p className="font-medium text-gray-800">{b.customer_name}</p>
-                        {b.notes && (
-                          <p className="text-xs text-gray-400 mt-0.5 max-w-[200px] truncate" title={b.notes}>
-                            📝 {b.notes}
-                          </p>
-                        )}
-                      </td>
-                      {/* Service */}
-                      <td className="px-6 py-4 text-gray-700">{b.service_name}</td>
-                      {/* Date + Time */}
-                      <td className="px-6 py-4">
-                        <p className="text-gray-700">{fmtDate(b.booking_date)}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{fmtTime(b.booking_time)}</p>
-                      </td>
-                      {/* Contact */}
-                      <td className="px-6 py-4">
-                        <p className="text-gray-700">{b.customer_email}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{b.customer_phone}</p>
-                      </td>
-                      {/* Status */}
-                      <td className="px-6 py-4">
-                        <select
-                          value={b.status}
-                          disabled={updatingId === b.id}
-                          onChange={e => handleStatusChange(b.id, e.target.value as Status)}
-                          className={`text-xs font-semibold px-2 py-1 rounded-full border cursor-pointer focus:outline-none disabled:opacity-60 ${STATUS_STYLES[b.status]}`}
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="confirmed">Confirmed</option>
-                          <option value="completed">Completed</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                      </td>
-                      {/* Delete */}
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleDelete(b)}
-                          disabled={deletingId === b.id}
-                          className="text-xs font-medium text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-60 transition">
-                          {deletingId === b.id ? "Deleting..." : "🗑️ Delete"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {/* Footer count */}
-              <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-right">
-                <span className="text-xs text-gray-400">{bookings.length} booking{bookings.length !== 1 ? "s" : ""} total</span>
-              </div>
+                ))}
+              </tbody>
+            </table>
+            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-right">
+              <span className="text-xs text-gray-400">{bookings.length} booking{bookings.length !== 1 ? "s" : ""} total</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
 
-        <div className="mt-6">
-          <Link href="/dashboard" className="text-sm text-indigo-600 hover:underline">← Back to Dashboard</Link>
-        </div>
-      </main>
-    </div>
+      <div className="mt-6">
+        <Link href="/dashboard" className="text-sm text-emerald-600 hover:underline">← Back to Dashboard</Link>
+      </div>
+    </main>
   );
 }

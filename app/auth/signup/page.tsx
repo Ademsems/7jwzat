@@ -59,7 +59,7 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-indigo-700">7jwzat</h1>
+          <Link href="/" className="text-3xl font-bold text-slate-900">7jwzat</Link>
           <p className="text-gray-500 mt-1">Create your business account</p>
         </div>
 
@@ -69,7 +69,8 @@ export default function SignupPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Issue 8: suppress browser autofill */}
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Business Name
@@ -77,10 +78,11 @@ export default function SignupPage() {
             <input
               type="text"
               required
+              autoComplete="off"
               value={form.businessName}
               onChange={(e) => setForm({ ...form, businessName: e.target.value })}
               placeholder="e.g. Al Noor Salon"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
 
@@ -91,10 +93,11 @@ export default function SignupPage() {
             <input
               type="email"
               required
+              autoComplete="off"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               placeholder="you@example.com"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
 
@@ -105,10 +108,11 @@ export default function SignupPage() {
             <input
               type="password"
               required
+              autoComplete="new-password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="Min. 8 characters"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
 
@@ -119,17 +123,18 @@ export default function SignupPage() {
             <input
               type="password"
               required
+              autoComplete="new-password"
               value={form.confirmPassword}
               onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
               placeholder="Repeat your password"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-60 transition"
+            className="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-60 transition"
           >
             {loading ? "Creating account..." : "Create Account"}
           </button>
@@ -137,7 +142,7 @@ export default function SignupPage() {
 
         <p className="text-center text-sm text-gray-500 mt-6">
           Already have an account?{" "}
-          <Link href="/auth/login" className="text-indigo-600 font-medium hover:underline">
+          <Link href="/auth/login" className="text-emerald-600 font-medium hover:underline">
             Sign in
           </Link>
         </p>
