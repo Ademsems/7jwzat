@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+/* ─── Base ──────────────────────────────────────────────────────────────────── */
+
 html {
   scroll-behavior: smooth;
 }
@@ -9,4 +11,178 @@ details > summary {
 }
 details > summary::-webkit-details-marker {
   display: none;
+}
+
+/* ─── Page entrance ─────────────────────────────────────────────────────────── */
+
+@keyframes pageFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.page-enter {
+  animation: pageFadeIn 450ms ease-out both;
+}
+
+/* ─── Hero background gradient shift ───────────────────────────────────────── */
+
+@keyframes heroGradient {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.hero-bg {
+  background: linear-gradient(-45deg, #0f172a, #0f2518, #0f172a, #0a1f2e);
+  background-size: 400% 400%;
+  animation: heroGradient 10s ease infinite;
+}
+
+/* ─── Hero text entrance (line-by-line stagger) ─────────────────────────────── */
+
+@keyframes heroFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-line-1 { animation: heroFadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both; }
+.hero-line-2 { animation: heroFadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both; }
+.hero-sub    { animation: heroFadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.44s both; }
+.hero-cta    { animation: heroFadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.58s both; }
+.hero-badge  { animation: heroFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.0s  both; }
+.hero-proof  { animation: heroFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.72s both; }
+.hero-mock   { animation: heroFadeUp 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.85s both; }
+
+/* ─── Floating orbs ─────────────────────────────────────────────────────────── */
+
+@keyframes orb1 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  33%       { transform: translate(40px, -30px) scale(1.08); }
+  66%       { transform: translate(-25px, 18px) scale(0.94); }
+}
+
+@keyframes orb2 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  40%       { transform: translate(-50px, 35px) scale(1.1); }
+  70%       { transform: translate(30px, -20px) scale(0.9); }
+}
+
+@keyframes orb3 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  50%       { transform: translate(35px, 30px) scale(1.06); }
+}
+
+@keyframes orb4 {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  30%       { transform: translate(-30px, -40px) scale(1.12); }
+  70%       { transform: translate(20px, 25px) scale(0.88); }
+}
+
+/* ─── CTA button shimmer ─────────────────────────────────────────────────────── */
+
+@keyframes shimmerSweep {
+  from { transform: translateX(-100%) skewX(-15deg); }
+  to   { transform: translateX(200%)  skewX(-15deg); }
+}
+
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+  transform: scale(1);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.btn-shimmer:hover {
+  transform: scale(1.025);
+}
+
+.btn-shimmer::after {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: -60%;
+  width: 40%;
+  height: 120%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 100%
+  );
+  transform: skewX(-15deg) translateX(-100%);
+  pointer-events: none;
+}
+
+.btn-shimmer:hover::after {
+  animation: shimmerSweep 0.55s ease-out forwards;
+}
+
+/* ─── Feature card hover glow ───────────────────────────────────────────────── */
+
+.feature-card {
+  transition: transform 220ms ease, box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  background-color: rgba(236, 253, 245, 0.5); /* emerald-50/50 */
+  box-shadow:
+    0 0 0 1px rgba(16, 185, 129, 0.25),
+    0 8px 28px rgba(16, 185, 129, 0.12);
+}
+
+/* ─── Pricing card hover ────────────────────────────────────────────────────── */
+
+.pricing-card {
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.pricing-card:hover {
+  transform: scale(1.025);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+}
+
+.pricing-card-pro:hover {
+  box-shadow:
+    0 0 0 2px rgba(16, 185, 129, 0.5),
+    0 16px 40px rgba(16, 185, 129, 0.2);
+}
+
+/* ─── FAQ item hover ────────────────────────────────────────────────────────── */
+
+.faq-row {
+  transition: background-color 150ms ease;
+  border-radius: 8px;
+}
+
+.faq-row:hover {
+  background-color: rgb(249, 250, 251);
+}
+
+/* ─── Mobile menu slide-down ────────────────────────────────────────────────── */
+
+@keyframes menuSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.mobile-menu-enter {
+  animation: menuSlideDown 200ms ease-out both;
+}
+
+/* ─── How It Works step card hover ──────────────────────────────────────────── */
+
+.step-card {
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.step-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
