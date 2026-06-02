@@ -11,5 +11,5 @@
 }
 
 export function bookingUrl(businessName: string, base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"): string {
-  return `${base}/book/${encodeURIComponent(businessName.toLowerCase())}`;
+  return `${base}/book/${slugifyBusinessName(businessName)}`;
 }

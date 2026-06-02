@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { slugifyBusinessName } from "@/lib/slug";
 
 /* ─── Types ─────────────────────────────────────── */
 interface Business { id: string; business_name: string; email: string; }
@@ -22,7 +23,10 @@ function generateSlots(start: string, end: string): string[] {
   return slots;
 }
 
-function isoDate(d: Date) { return d.toISOString().split("T")[0]; }
+function isoDate(d: Date) {
+  // Use local date parts to avoid UTC midnight shifting the date
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 function fmtDate(s: string) {
   return new Date(s + "T00:00:00").toLocaleDateString("en-AE", {
     weekday: "long", year: "numeric", month: "long", day: "numeric"
@@ -39,7 +43,7 @@ const DNAMES = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 /* ─── Mini Calendar ─────────────────────────────── */
 function MiniCalendar({ selected, onSelect, minDate, maxDate }:
   { selected: string|null; onSelect:(d:string)=>void; minDate:Date; maxDate:Date }) {
-  const today = new Date();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   const [view, setView] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const year = view.getFullYear(), month = view.getMonth();
   const firstDay = new Date(year, month, 1).getDay();
@@ -87,7 +91,8 @@ const EMPTY_ERRORS = { name: "", email: "", phone: "" };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function BookPage({ params }: { params: { businessname: string } }) {
-  const businessSlug = decodeURIComponent(params.businessname);
+  // Normalise the URL param — handles both "malak-salon" and "malak%20salon"
+  const businessSlug = slugifyBusinessName(decodeURIComponent(params.businessname));
 
   const [loading, setLoading] = useState(true);
   const [business, setBusiness] = useState<Business|null>(null);
@@ -115,11 +120,12 @@ export default function BookPage({ params }: { params: { businessname: string } 
   useEffect(() => { loadBusiness(); }, []);
 
   async function loadBusiness() {
+    // Fetch all businesses and find the one whose slug matches the URL param
     const { data: users, error } = await supabase
-      .from("users").select("id,business_name,email")
-      .ilike("business_name", businessSlug).limit(1);
-    if (error || !users || users.length === 0) { setNotFound(true); setLoading(false); return; }
-    const biz = users[0];
+      .from("users").select("id,business_name,email");
+    if (error || !users) { setNotFound(true); setLoading(false); return; }
+    const biz = users.find(u => slugifyBusinessName(u.business_name) === businessSlug);
+    if (!biz) { setNotFound(true); setLoading(false); return; }
     setBusiness(biz);
     const [svcRes, hrRes] = await Promise.all([
       supabase.from("services").select("*").eq("user_id", biz.id).order("created_at"),
