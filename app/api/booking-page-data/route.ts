@@ -49,9 +49,15 @@ export async function GET(req: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+  // DIAGNOSTIC — visible in Vercel function logs
+  console.log("[booking-page-data] incoming slug:", slug);
+  console.log("[booking-page-data] SUPABASE_URL set:", !!supabaseUrl);
+  console.log("[booking-page-data] SERVICE_ROLE_KEY set:", !!serviceKey);
+  console.log("[booking-page-data] SERVICE_ROLE_KEY first 12 chars:", serviceKey ? serviceKey.slice(0, 12) : "MISSING");
+
   if (!supabaseUrl || !serviceKey) {
-    console.error("booking-page-data: missing env vars", { supabaseUrl: !!supabaseUrl, serviceKey: !!serviceKey });
-    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+    console.error("[booking-page-data] FATAL: missing env vars — add SUPABASE_SERVICE_ROLE_KEY to Vercel env");
+    return NextResponse.json({ error: "Server configuration error — missing env vars" }, { status: 500 });
   }
 
   const supabase = createClient(supabaseUrl, serviceKey);
