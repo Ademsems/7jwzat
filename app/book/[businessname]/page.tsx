@@ -149,10 +149,11 @@ export default function BookPage({ params }: { params: { businessname: string } 
   useEffect(() => { loadBusiness(); }, []);
 
   async function loadBusiness() {
-    const { data: users, error } = await supabase.from("users").select("id,business_name,email,phone_number");
-    if (error || !users) { setNotFound(true); setLoading(false); return; }
-    const biz = users.find((u: Business) => slugifyBusinessName(u.business_name) === businessSlug);
-    if (!biz) { setNotFound(true); setLoading(false); return; }
+    // Use the server-side API route so the service-role key bypasses RLS on the
+    // users table (anon key would return an empty array for unauthenticated visitors).
+    const bizRes = await fetch(`/api/business-lookup?slug=${encodeURIComponent(businessSlug)}`);
+    if (!bizRes.ok) { setNotFound(true); setLoading(false); return; }
+    const biz: Business = await bizRes.json();
     setBusiness(biz);
 
     const todayStr = isoDate(today);
