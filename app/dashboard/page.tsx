@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -7,11 +7,35 @@ import { supabase } from "@/lib/supabase";
 import { bookingUrl } from "@/lib/slug";
 import { showToast } from "@/components/Toast";
 
-interface UserProfile { email: string; business_name: string; }
-interface Stats { totalBookings: number; todayBookings: number; serviceCount: number; revenueMTD: number; }
+interface UserProfile {
+  email: string;
+  business_name: string;
+  business_type?: string | null;
+}
+interface Stats {
+  totalBookings: number;
+  todayBookings: number;
+  serviceCount: number;
+  revenueMTD: number;
+}
 
 function localDateString(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getWelcomeTag(type?: string | null): string {
+  switch (type) {
+    case "hair_beauty":
+    case "spa_wellness":
+      return "Your clients are booking while you work. \u{1F487}";
+    case "clinic_healthcare":
+    case "mental_health":
+      return "Your patients are self-scheduling. \u{1F3E5}";
+    case "fitness_movement":
+      return "Your members are booking sessions. \u{1F3CB}️";
+    default:
+      return "Here’s an overview of your business. \u{1F44B}";
+  }
 }
 
 export default function DashboardPage() {
@@ -27,13 +51,11 @@ export default function DashboardPage() {
       if (!session) { router.replace("/auth/login"); return; }
 
       const userId = session.user.id;
-
-      // Profile + all stats in parallel
       const today = localDateString();
       const firstOfMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`;
 
       const [profileRes, totalRes, todayRes, svcRes, revenueRes] = await Promise.all([
-        supabase.from("users").select("email, business_name").eq("id", userId).single(),
+        supabase.from("users").select("email, business_name, business_type").eq("id", userId).single(),
         supabase.from("bookings").select("*", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("bookings").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("booking_date", today),
         supabase.from("services").select("*", { count: "exact", head: true }).eq("user_id", userId),
@@ -67,22 +89,26 @@ export default function DashboardPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-gray-500">Loading...</div></div>;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-gray-500">Loading...</div>
+    </div>
+  );
 
   const link = profile ? bookingUrl(profile.business_name) : "";
 
   const statCards = [
-    { label: "Total Bookings",   value: String(stats.totalBookings) },
-    { label: "Today",            value: String(stats.todayBookings) },
-    { label: "Services",         value: String(stats.serviceCount) },
-    { label: "Revenue (MTD)",    value: `AED ${stats.revenueMTD.toFixed(2)}` },
+    { label: "Total Bookings", value: String(stats.totalBookings) },
+    { label: "Today",          value: String(stats.todayBookings) },
+    { label: "Services",       value: String(stats.serviceCount) },
+    { label: "Revenue (MTD)",  value: `AED ${stats.revenueMTD.toFixed(2)}` },
   ];
 
   return (
-    <main className="flex-1 p-8">
+    <main className="flex-1 p-4 sm:p-8">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-800">Welcome, {profile?.business_name} &#128075;</h2>
-        <p className="text-gray-500 text-sm mt-1">{profile?.email}</p>
+        <h2 className="text-2xl font-bold text-gray-800">Welcome, {profile?.business_name}</h2>
+        <p className="text-gray-500 text-sm mt-1">{getWelcomeTag(profile?.business_type)}</p>
       </div>
 
       {/* Share Booking Link Card */}
@@ -100,19 +126,25 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-3 mt-4">
-          <button onClick={copyLink}
+          <button
+            onClick={copyLink}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition ${
               copied ? "bg-green-500 text-white" : "bg-white text-emerald-700 hover:bg-emerald-50"
-            }`}>
+            }`}
+          >
             {copied ? "Copied!" : "Copy Link"}
           </button>
-          <a href={`https://wa.me/?text=${encodeURIComponent("Book your appointment here: " + link)}`}
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent("Book your appointment here: " + link)}`}
             target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-white/15 hover:bg-white/25 transition">
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-white/15 hover:bg-white/25 transition"
+          >
             WhatsApp
           </a>
-          <a href={`mailto:?subject=Book%20an%20appointment&body=${encodeURIComponent("Book here: " + link)}`}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-white/15 hover:bg-white/25 transition">
+          <a
+            href={`mailto:?subject=Book%20an%20appointment&body=${encodeURIComponent("Book here: " + link)}`}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-white/15 hover:bg-white/25 transition"
+          >
             Email
           </a>
         </div>

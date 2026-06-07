@@ -86,7 +86,7 @@ export default function BusinessHoursPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></div>;
 
   return (
-    <main className="flex-1 p-8 max-w-2xl">
+    <main className="flex-1 p-4 sm:p-8 max-w-2xl">
       <h2 className="text-2xl font-bold text-gray-800 mb-2">Business Hours</h2>
       <p className="text-gray-500 text-sm mb-8">Set the days and times your business is open for bookings.</p>
 
@@ -108,7 +108,7 @@ export default function BusinessHoursPage() {
                 </div>
                 {day.open ? (
                   <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-400 uppercase tracking-wide">From</span>
                         <input type="time" value={day.start} onChange={e => setDay(index, { start: e.target.value })}

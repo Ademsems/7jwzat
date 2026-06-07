@@ -49,7 +49,7 @@ export default function SettingsPage() {
   const memberSince = profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-AE", { year: "numeric", month: "long" }) : "—";
 
   return (
-    <main className="flex-1 p-8 max-w-2xl">
+    <main className="flex-1 p-4 sm:p-8 max-w-2xl">
       <h2 className="text-2xl font-bold text-gray-800 mb-1">Settings</h2>
       <p className="text-gray-500 text-sm mb-8">Your account and business details.</p>
 

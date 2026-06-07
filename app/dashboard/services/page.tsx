@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 
-interface Service { id: string; name: string; duration: number; price: number; }
-const EMPTY = { name: "", duration: "", price: "" };
+interface Service { id: string; name: string; duration: number; price: number; is_group_service: boolean; }
+const EMPTY = { name: "", duration: "", price: "", isGroup: false };
 
 function getErr(e: unknown) {
-  return e && typeof e === "object" && "message" in e ? String((e as {message:unknown}).message) : "Something went wrong.";
+  return e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "Something went wrong.";
 }
 
 export default function ServicesPage() {
@@ -17,7 +17,7 @@ export default function ServicesPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [form, setForm] = useState(EMPTY);
-  const [fieldErrors, setFieldErrors] = useState<{name?:string;duration?:string;price?:string}>({});
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; duration?: string; price?: string }>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,10 +60,10 @@ export default function ServicesPage() {
     return undefined;
   }
 
-  function handleChange(field: "name"|"duration"|"price", val: string) {
-    setForm(f => ({...f, [field]: val}));
+  function handleChange(field: "name" | "duration" | "price", val: string) {
+    setForm(f => ({ ...f, [field]: val }));
     const err = validateField(field, val);
-    setFieldErrors(e => ({...e, [field]: err}));
+    setFieldErrors(e => ({ ...e, [field]: err }));
   }
 
   function validateAll() {
@@ -76,17 +76,24 @@ export default function ServicesPage() {
     return !errs.name && !errs.duration && !errs.price;
   }
 
-  const isFormValid = !fieldErrors.name && !fieldErrors.duration && !fieldErrors.price &&
+  const isFormValid =
+    !fieldErrors.name && !fieldErrors.duration && !fieldErrors.price &&
     !!form.name.trim() && !!form.duration && !!form.price;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validateAll() || !userId) return;
     setSaving(true);
-    const payload = { name: form.name.trim(), duration: Number(form.duration), price: Number(form.price), user_id: userId };
+    const payload = {
+      name: form.name.trim(),
+      duration: Number(form.duration),
+      price: Number(form.price),
+      is_group_service: form.isGroup,
+      user_id: userId,
+    };
     if (editingId) {
       const { error } = await supabase.from("services")
-        .update({ name: payload.name, duration: payload.duration, price: payload.price })
+        .update({ name: payload.name, duration: payload.duration, price: payload.price, is_group_service: payload.is_group_service })
         .eq("id", editingId);
       if (error) showToast(getErr(error), "error");
       else { showToast("Service updated successfully."); setForm(EMPTY); setEditingId(null); await fetchServices(); }
@@ -100,7 +107,7 @@ export default function ServicesPage() {
 
   function startEdit(svc: Service) {
     setEditingId(svc.id);
-    setForm({ name: svc.name, duration: String(svc.duration), price: String(svc.price) });
+    setForm({ name: svc.name, duration: String(svc.duration), price: String(svc.price), isGroup: svc.is_group_service });
     setFieldErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -119,7 +126,7 @@ export default function ServicesPage() {
   if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></div>;
 
   return (
-    <main className="flex-1 p-8 max-w-3xl">
+    <main className="flex-1 p-4 sm:p-8 max-w-3xl">
       <h2 className="text-2xl font-bold text-gray-800 mb-8">Services</h2>
 
       {/* Form */}
@@ -128,35 +135,89 @@ export default function ServicesPage() {
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
-            <input type="text" value={form.name} onChange={e => handleChange("name", e.target.value)}
-              placeholder="e.g. Haircut" maxLength={50}
-              className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${fieldErrors.name ? "border-red-400 bg-red-50" : "border-gray-300"}`} />
+            <input
+              type="text"
+              value={form.name}
+              onChange={e => handleChange("name", e.target.value)}
+              placeholder="e.g. Haircut"
+              maxLength={50}
+              className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${fieldErrors.name ? "border-red-400 bg-red-50" : "border-gray-300"}`}
+            />
             {fieldErrors.name && <p className="text-red-600 text-xs mt-1">{fieldErrors.name}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
-              <input type="number" value={form.duration} onChange={e => handleChange("duration", e.target.value)}
-                placeholder="e.g. 30" min={15} max={480} step={15}
-                className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${fieldErrors.duration ? "border-red-400 bg-red-50" : "border-gray-300"}`} />
+              <input
+                type="number"
+                value={form.duration}
+                onChange={e => handleChange("duration", e.target.value)}
+                placeholder="e.g. 30"
+                min={15}
+                max={480}
+                step={15}
+                className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${fieldErrors.duration ? "border-red-400 bg-red-50" : "border-gray-300"}`}
+              />
               {fieldErrors.duration && <p className="text-red-600 text-xs mt-1">{fieldErrors.duration}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Price (AED)</label>
-              <input type="number" value={form.price} onChange={e => handleChange("price", e.target.value)}
-                placeholder="e.g. 25.99" min={0} step={0.01}
-                className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${fieldErrors.price ? "border-red-400 bg-red-50" : "border-gray-300"}`} />
+              <input
+                type="number"
+                value={form.price}
+                onChange={e => handleChange("price", e.target.value)}
+                placeholder="e.g. 25.99"
+                min={0}
+                step={0.01}
+                className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${fieldErrors.price ? "border-red-400 bg-red-50" : "border-gray-300"}`}
+              />
               {fieldErrors.price && <p className="text-red-600 text-xs mt-1">{fieldErrors.price}</p>}
             </div>
           </div>
+
+          {/* Session type toggle */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Session Type</label>
+            <div className="flex rounded-xl border border-gray-200 overflow-hidden w-fit text-sm">
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, isGroup: false }))}
+                className={`px-5 py-2 font-medium transition ${!form.isGroup ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+              >
+                1-on-1
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, isGroup: true }))}
+                className={`px-5 py-2 font-medium transition ${form.isGroup ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+              >
+                Group session
+              </button>
+            </div>
+            {form.isGroup && (
+              <p className="text-xs text-emerald-700 mt-2 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+                &#128101; This service uses group sessions. Manage sessions in the <strong>Sessions</strong> tab.
+              </p>
+            )}
+          </div>
+
           <div className="flex gap-3 pt-1">
-            <button type="submit" disabled={saving || !isFormValid}
-              className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+            <button
+              type="submit"
+              disabled={saving || !isFormValid}
+              className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
               {saving ? "Saving..." : editingId ? "Update Service" : "Add Service"}
             </button>
             {editingId && (
-              <button type="button" onClick={cancelEdit}
-                className="border border-gray-300 text-gray-600 px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-50 transition">Cancel</button>
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="border border-gray-300 text-gray-600 px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
             )}
           </div>
         </form>
@@ -175,6 +236,7 @@ export default function ServicesPage() {
                   <th className="text-left text-gray-500 font-medium pb-3 pr-4">Service</th>
                   <th className="text-left text-gray-500 font-medium pb-3 pr-4">Duration</th>
                   <th className="text-left text-gray-500 font-medium pb-3 pr-4">Price</th>
+                  <th className="text-left text-gray-500 font-medium pb-3 pr-4">Type</th>
                   <th className="text-right text-gray-500 font-medium pb-3">Actions</th>
                 </tr>
               </thead>
@@ -184,12 +246,30 @@ export default function ServicesPage() {
                     <td className="py-3 pr-4 font-medium text-gray-800">{svc.name}</td>
                     <td className="py-3 pr-4 text-gray-600">{svc.duration} min</td>
                     <td className="py-3 pr-4 text-gray-600">AED {Number(svc.price).toFixed(2)}</td>
+                    <td className="py-3 pr-4">
+                      {svc.is_group_service ? (
+                        <span className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full font-medium">
+                          &#128101; Group
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-medium">
+                          1-on-1
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 text-right space-x-2">
-                      <button onClick={() => startEdit(svc)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition">✏️ Edit</button>
-                      <button onClick={() => handleDelete(svc)} disabled={deletingId === svc.id}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-60 transition">
-                        {deletingId === svc.id ? "..." : "🗑️ Delete"}
+                      <button
+                        onClick={() => startEdit(svc)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition"
+                      >
+                        &#9999;&#65039; Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(svc)}
+                        disabled={deletingId === svc.id}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-60 transition"
+                      >
+                        {deletingId === svc.id ? "..." : "&#128465;&#65039; Delete"}
                       </button>
                     </td>
                   </tr>
