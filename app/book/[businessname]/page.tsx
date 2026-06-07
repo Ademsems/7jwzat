@@ -1,13 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { slugifyBusinessName } from "@/lib/slug";
+
+/**
+ * Public booking page.
+ *
+ * ALL data fetching goes through server-side API routes that use the
+ * Supabase service-role key.  This bypasses the RLS policies that
+ * restrict the anon key to authenticated users' own rows.
+ *
+ * API routes used:
+ *   GET  /api/booking-page-data?slug=   → business + services + hours + existing bookings
+ *   GET  /api/group-sessions?businessId=&serviceId=  → upcoming group sessions
+ *   POST /api/create-booking            → double-check + insert + emails
+ */
 
 /* ─── Types ─────────────────────────────────────────────── */
 interface Business { id: string; business_name: string; email: string; phone_number?: string | null; }
 interface Service  { id: string; name: string; duration: number; price: number; is_group_service: boolean; }
 interface BusinessHour { day_of_week: number; start_time: string; end_time: string; }
+interface ExistingBooking { booking_date: string; booking_time: string; }
 interface GroupSession {
   id: string;
   service_id: string;
@@ -45,10 +58,6 @@ function fmtTime(t: string) {
   const ampm = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 || 12;
   return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
-}
-function getErr(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err) return String((err as { message: unknown }).message);
-  return "Something went wrong.";
 }
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -112,9 +121,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
   const [notFound, setNotFound] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
   const [hours, setHours] = useState<BusinessHour[]>([]);
-
-  // All existing bookings (including blocked/manual) — used to filter slots
-  const [existingBookings, setExistingBookings] = useState<{ booking_date: string; booking_time: string }[]>([]);
+  const [existingBookings, setExistingBookings] = useState<ExistingBooking[]>([]);
 
   // 1-on-1 flow
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -135,50 +142,38 @@ export default function BookPage({ params }: { params: { businessname: string } 
   const [formError, setFormError] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [confirmedData, setConfirmedData] = useState<{
-    service: Service;
-    date: string;
-    time: string;
-    name: string;
-    email: string;
-    isGroup: boolean;
+    service: Service; date: string; time: string; name: string; email: string; isGroup: boolean;
   } | null>(null);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const maxDate = new Date(today); maxDate.setDate(today.getDate() + 30);
 
-  useEffect(() => { loadBusiness(); }, []);
+  useEffect(() => { loadAll(); }, []);
 
-  async function loadBusiness() {
-    // Use the server-side API route so the service-role key bypasses RLS on the
-    // users table (anon key would return an empty array for unauthenticated visitors).
-    const bizRes = await fetch(`/api/business-lookup?slug=${encodeURIComponent(businessSlug)}`);
-    if (!bizRes.ok) { setNotFound(true); setLoading(false); return; }
-    const biz: Business = await bizRes.json();
-    setBusiness(biz);
-
-    const todayStr = isoDate(today);
-    const maxStr   = isoDate(maxDate);
-
-    const [svcRes, hrRes, bkRes] = await Promise.all([
-      supabase.from("services").select("*").eq("user_id", biz.id).order("created_at"),
-      supabase.from("business_hours").select("*").eq("user_id", biz.id),
-      // Fetch ALL non-cancelled bookings in the next 30 days (including blocked/manual)
-      supabase
-        .from("bookings")
-        .select("booking_date, booking_time")
-        .eq("user_id", biz.id)
-        .gte("booking_date", todayStr)
-        .lte("booking_date", maxStr)
-        .neq("status", "cancelled"),
-    ]);
-
-    if (svcRes.data) setServices(svcRes.data);
-    if (hrRes.data) setHours(hrRes.data);
-    if (bkRes.data) setExistingBookings(bkRes.data);
-    setLoading(false);
+  async function loadAll() {
+    try {
+      const res = await fetch(`/api/booking-page-data?slug=${encodeURIComponent(businessSlug)}`);
+      if (res.status === 404) { setNotFound(true); setLoading(false); return; }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("booking-page-data failed:", err);
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setBusiness(data.business);
+      setServices(data.services ?? []);
+      setHours(data.hours ?? []);
+      setExistingBookings(data.existingBookings ?? []);
+    } catch (e) {
+      console.error("loadAll error:", e);
+      setNotFound(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  // When a service is selected, load group sessions if needed
   async function handleServiceSelect(svc: Service) {
     const isSame = svc.id === selectedService?.id;
     setSelectedService(isSame ? null : svc);
@@ -189,44 +184,18 @@ export default function BookPage({ params }: { params: { businessname: string } 
 
     if (!isSame && svc.is_group_service && business) {
       setLoadingSessions(true);
-      const todayStr = isoDate(today);
-      const { data: sesRows } = await supabase
-        .from("group_sessions")
-        .select("*")
-        .eq("user_id", business.id)
-        .eq("service_id", svc.id)
-        .gte("session_date", todayStr)
-        .order("session_date", { ascending: true })
-        .order("session_time", { ascending: true });
-
-      if (sesRows && sesRows.length > 0) {
-        // Count bookings per session
-        const sessionIds = sesRows.map((s: { id: string }) => s.id);
-        const { data: bkRows } = await supabase
-          .from("bookings")
-          .select("group_session_id")
-          .in("group_session_id", sessionIds)
-          .neq("status", "cancelled");
-
-        const countMap: Record<string, number> = {};
-        (bkRows ?? []).forEach((b: { group_session_id: string }) => {
-          countMap[b.group_session_id] = (countMap[b.group_session_id] ?? 0) + 1;
-        });
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setGroupSessions(sesRows.map((s: any) => ({
-          id: s.id,
-          service_id: s.service_id,
-          session_date: s.session_date,
-          session_time: s.session_time,
-          capacity: s.capacity,
-          notes: s.notes,
-          booked_count: countMap[s.id] ?? 0,
-        })));
-      } else {
+      try {
+        const res = await fetch(
+          `/api/group-sessions?businessId=${encodeURIComponent(business.id)}&serviceId=${encodeURIComponent(svc.id)}`
+        );
+        const data = await res.json();
+        setGroupSessions(data.sessions ?? []);
+      } catch (e) {
+        console.error("group-sessions fetch error:", e);
         setGroupSessions([]);
+      } finally {
+        setLoadingSessions(false);
       }
-      setLoadingSessions(false);
     } else {
       setGroupSessions([]);
     }
@@ -240,17 +209,13 @@ export default function BookPage({ params }: { params: { businessname: string } 
     const dayHours = hours.find(h => h.day_of_week === dow);
     if (!dayHours) { setClosedDay(true); setSlots([]); return; }
 
-    // Generate all time slots from business hours
+    // Generate slots then remove already-taken times (incl. blocked/manual)
     const allSlots = generateSlots(dayHours.start_time, dayHours.end_time);
-
-    // Remove slots that are already taken (including blocked/manual)
-    const takenOnDate = new Set(
+    const taken = new Set(
       existingBookings.filter(b => b.booking_date === dateStr).map(b => b.booking_time.slice(0, 5))
     );
-    const available = allSlots.filter(slot => !takenOnDate.has(slot));
-
     setClosedDay(false);
-    setSlots(available);
+    setSlots(allSlots.filter(s => !taken.has(s)));
   }
 
   function validateForm(): boolean {
@@ -262,7 +227,6 @@ export default function BookPage({ params }: { params: { businessname: string } 
     setFieldErrors(errs);
     return !errs.name && !errs.email && !errs.phone;
   }
-
   function handleFieldChange(field: "name" | "email" | "phone" | "note", val: string) {
     setForm(f => ({ ...f, [field]: val }));
     if (field === "name") setFieldErrors(e => ({ ...e, name: val.trim().length >= 2 ? "" : "Full name required (min 2 characters)." }));
@@ -273,120 +237,69 @@ export default function BookPage({ params }: { params: { businessname: string } 
     }
   }
 
-  /* ─── Handle 1-on-1 booking ─────────────────────────────── */
-  async function handleBooking(e: React.FormEvent) {
-    e.preventDefault();
-    if (!business || !selectedService || !selectedDate || !selectedTime) return;
+  async function submitBooking(isGroup: boolean) {
+    if (!business || !selectedService) return;
     if (!validateForm()) return;
     setFormError("");
     setSubmitting(true);
 
     try {
-      // Double-booking check (server-side re-check)
-      const { data: existing } = await supabase
-        .from("bookings")
-        .select("id")
-        .eq("user_id", business.id)
-        .eq("booking_date", selectedDate)
-        .eq("booking_time", selectedTime)
-        .neq("status", "cancelled");
+      const body = isGroup
+        ? {
+            businessId: business.id,
+            serviceId: selectedService.id,
+            groupSessionId: selectedSession!.id,
+            bookingDate: selectedSession!.session_date,
+            bookingTime: selectedSession!.session_time,
+            customerName: form.name.trim(),
+            customerEmail: form.email.trim(),
+            customerPhone: form.phone.trim(),
+            notes: form.note.trim() || null,
+            serviceName: selectedService.name,
+            duration: selectedService.duration,
+            price: Number(selectedService.price),
+            businessName: business.business_name,
+            ownerEmail: business.email,
+          }
+        : {
+            businessId: business.id,
+            serviceId: selectedService.id,
+            bookingDate: selectedDate!,
+            bookingTime: selectedTime!,
+            customerName: form.name.trim(),
+            customerEmail: form.email.trim(),
+            customerPhone: form.phone.trim(),
+            notes: form.note.trim() || null,
+            serviceName: selectedService.name,
+            duration: selectedService.duration,
+            price: Number(selectedService.price),
+            businessName: business.business_name,
+            ownerEmail: business.email,
+          };
 
-      if (existing && existing.length > 0) {
-        setFormError("This time slot is no longer available. Please choose another time.");
-        setSubmitting(false);
-        return;
-      }
-
-      const { error: insErr } = await supabase.from("bookings").insert({
-        user_id: business.id,
-        service_id: selectedService.id,
-        customer_name: form.name.trim(),
-        customer_email: form.email.trim(),
-        customer_phone: form.phone.trim(),
-        notes: form.note.trim() || null,
-        booking_date: selectedDate,
-        booking_time: selectedTime,
-        status: "pending",
-        booking_type: "customer",
-      });
-      if (insErr) throw insErr;
-
-      // Fire emails non-blocking
-      fetch("/api/send-booking-emails", {
+      const res = await fetch("/api/create-booking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: form.name.trim(),
-          customerEmail: form.email.trim(),
-          customerPhone: form.phone.trim(),
-          notes: form.note.trim() || null,
-          serviceName: selectedService.name,
-          duration: selectedService.duration,
-          price: Number(selectedService.price),
-          bookingDate: selectedDate,
-          bookingTime: selectedTime,
-          businessName: business.business_name,
-          ownerEmail: business.email,
-        }),
-      }).catch(e => console.error("Email dispatch failed:", e));
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
 
-      setConfirmedData({ service: selectedService, date: selectedDate, time: selectedTime, name: form.name.trim(), email: form.email.trim(), isGroup: false });
-      setConfirmed(true);
-    } catch (err) {
-      setFormError(getErr(err));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  /* ─── Handle group session booking ──────────────────────── */
-  async function handleGroupBooking(e: React.FormEvent) {
-    e.preventDefault();
-    if (!business || !selectedService || !selectedSession) return;
-    if (!validateForm()) return;
-    setFormError("");
-    setSubmitting(true);
-
-    try {
-      // Check capacity (server-side re-check)
-      const { count } = await supabase
-        .from("bookings")
-        .select("*", { count: "exact", head: true })
-        .eq("group_session_id", selectedSession.id)
-        .neq("status", "cancelled");
-
-      if ((count ?? 0) >= selectedSession.capacity) {
-        setFormError("Sorry, this session is now fully booked. Please choose another.");
-        setSubmitting(false);
+      if (!res.ok) {
+        setFormError(data.error ?? "Something went wrong. Please try again.");
         return;
       }
-
-      const { error: insErr } = await supabase.from("bookings").insert({
-        user_id: business.id,
-        service_id: selectedService.id,
-        group_session_id: selectedSession.id,
-        customer_name: form.name.trim(),
-        customer_email: form.email.trim(),
-        customer_phone: form.phone.trim(),
-        notes: form.note.trim() || null,
-        booking_date: selectedSession.session_date,
-        booking_time: selectedSession.session_time,
-        status: "pending",
-        booking_type: "customer",
-      });
-      if (insErr) throw insErr;
 
       setConfirmedData({
         service: selectedService,
-        date: selectedSession.session_date,
-        time: selectedSession.session_time,
+        date: isGroup ? selectedSession!.session_date : selectedDate!,
+        time: isGroup ? selectedSession!.session_time : selectedTime!,
         name: form.name.trim(),
         email: form.email.trim(),
-        isGroup: true,
+        isGroup,
       });
       setConfirmed(true);
-    } catch (err) {
-      setFormError(getErr(err));
+    } catch {
+      setFormError("Network error. Please check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -454,14 +367,13 @@ export default function BookPage({ params }: { params: { businessname: string } 
     </div>
   );
 
-  const isGroupService = !!(selectedService?.is_group_service);
+  const isGroupService  = !!selectedService?.is_group_service;
   const readyForGroupForm = !!(selectedService && isGroupService && selectedSession);
   const readyFor1on1Form  = !!(selectedService && !isGroupService && selectedDate && selectedTime);
 
   /* ─── Main Booking UI ────────────────────────────────────── */
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b shadow-sm">
         <div className="max-w-3xl mx-auto px-4 py-6 flex items-center gap-4">
           <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center text-2xl font-bold text-indigo-600">
@@ -476,7 +388,6 @@ export default function BookPage({ params }: { params: { businessname: string } 
 
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
 
-        {/* Edge-case banners */}
         {services.length === 0 && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm">
             This business currently has no services available. Please check back later.
@@ -488,7 +399,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
           </div>
         )}
 
-        {/* Step 1: Select a service */}
+        {/* Step 1: Service */}
         <section>
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
             <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold mr-2">1</span>
@@ -520,14 +431,13 @@ export default function BookPage({ params }: { params: { businessname: string } 
           }
         </section>
 
-        {/* ── GROUP SESSION FLOW ── */}
+        {/* ── GROUP FLOW: session picker ── */}
         {selectedService && isGroupService && (
           <section>
             <h2 className="text-lg font-semibold text-gray-800 mb-4">
               <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold mr-2">2</span>
               Choose a Session
             </h2>
-
             {loadingSessions ? (
               <p className="text-gray-400 text-sm">Loading sessions...</p>
             ) : groupSessions.length === 0 ? (
@@ -569,9 +479,6 @@ export default function BookPage({ params }: { params: { businessname: string } 
                           )}
                         </div>
                       </div>
-                      {isFull && (
-                        <p className="text-xs text-gray-400 mt-2">Full &mdash; contact the business to join a waitlist</p>
-                      )}
                     </button>
                   );
                 })}
@@ -580,7 +487,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
           </section>
         )}
 
-        {/* ── 1-ON-1 DATE + TIME FLOW ── */}
+        {/* ── 1-ON-1 FLOW: date + time ── */}
         {selectedService && !isGroupService && (
           <>
             <section>
@@ -603,8 +510,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
                     ? <p className="text-gray-400 text-sm">No available time slots for this date.</p>
                     : <div className="flex flex-wrap gap-2">
                         {slots.map(slot => (
-                          <button
-                            key={slot}
+                          <button key={slot}
                             onClick={() => { setSelectedTime(slot === selectedTime ? null : slot); setFormError(""); }}
                             className={`px-4 py-2 rounded-lg text-sm font-medium border transition
                               ${selectedTime === slot ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200 hover:border-indigo-400 hover:text-indigo-600"}`}
@@ -619,7 +525,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
           </>
         )}
 
-        {/* ── BOOKING FORM (shared for both flows) ── */}
+        {/* ── BOOKING FORM (both flows) ── */}
         {(readyFor1on1Form || readyForGroupForm) && (
           <section>
             <h2 className="text-lg font-semibold text-gray-800 mb-4">
@@ -629,25 +535,23 @@ export default function BookPage({ params }: { params: { businessname: string } 
               Your Details
             </h2>
 
-            {/* Summary bar */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-5 flex flex-wrap gap-x-6 gap-y-1 text-sm">
               <span><span className="text-gray-500">Service:</span> <strong>{selectedService!.name}</strong></span>
               <span><span className="text-gray-500">Price:</span> <strong className="text-indigo-600">AED {Number(selectedService!.price).toFixed(2)}</strong></span>
-              {isGroupService && selectedSession ? (
-                <>
-                  <span><span className="text-gray-500">Date:</span> <strong>{fmtDate(selectedSession.session_date)}</strong></span>
-                  <span><span className="text-gray-500">Time:</span> <strong>{fmtTime(selectedSession.session_time)}</strong></span>
-                </>
-              ) : (
-                <>
-                  <span><span className="text-gray-500">Date:</span> <strong>{fmtDate(selectedDate!)}</strong></span>
-                  <span><span className="text-gray-500">Time:</span> <strong>{selectedTime}</strong></span>
-                </>
-              )}
+              {isGroupService && selectedSession
+                ? <>
+                    <span><span className="text-gray-500">Date:</span> <strong>{fmtDate(selectedSession.session_date)}</strong></span>
+                    <span><span className="text-gray-500">Time:</span> <strong>{fmtTime(selectedSession.session_time)}</strong></span>
+                  </>
+                : <>
+                    <span><span className="text-gray-500">Date:</span> <strong>{fmtDate(selectedDate!)}</strong></span>
+                    <span><span className="text-gray-500">Time:</span> <strong>{selectedTime}</strong></span>
+                  </>
+              }
             </div>
 
             <form
-              onSubmit={isGroupService ? handleGroupBooking : handleBooking}
+              onSubmit={e => { e.preventDefault(); submitBooking(isGroupService); }}
               className="bg-white rounded-xl shadow-sm p-6 space-y-4"
             >
               {formError && (
@@ -655,56 +559,35 @@ export default function BookPage({ params }: { params: { businessname: string } 
               )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={e => handleFieldChange("name", e.target.value)}
-                  placeholder="Ahmed Ali"
-                  minLength={2}
-                  maxLength={80}
-                  className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${fieldErrors.name ? "border-red-400 bg-red-50" : "border-gray-300"}`}
-                />
+                <input type="text" value={form.name} onChange={e => handleFieldChange("name", e.target.value)}
+                  placeholder="Ahmed Ali" minLength={2} maxLength={80}
+                  className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${fieldErrors.name ? "border-red-400 bg-red-50" : "border-gray-300"}`} />
                 {fieldErrors.name && <p className="text-red-600 text-xs mt-1">{fieldErrors.name}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={e => handleFieldChange("email", e.target.value)}
+                <input type="email" value={form.email} onChange={e => handleFieldChange("email", e.target.value)}
                   placeholder="ahmed@example.com"
-                  className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${fieldErrors.email ? "border-red-400 bg-red-50" : "border-gray-300"}`}
-                />
+                  className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${fieldErrors.email ? "border-red-400 bg-red-50" : "border-gray-300"}`} />
                 {fieldErrors.email && <p className="text-red-600 text-xs mt-1">{fieldErrors.email}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
-                <input
-                  type="tel"
-                  value={form.phone}
-                  onChange={e => handleFieldChange("phone", e.target.value)}
+                <input type="tel" value={form.phone} onChange={e => handleFieldChange("phone", e.target.value)}
                   placeholder="+971 50 123 4567"
-                  className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${fieldErrors.phone ? "border-red-400 bg-red-50" : "border-gray-300"}`}
-                />
+                  className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${fieldErrors.phone ? "border-red-400 bg-red-50" : "border-gray-300"}`} />
                 {fieldErrors.phone && <p className="text-red-600 text-xs mt-1">{fieldErrors.phone}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Special Requests <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
-                <textarea
-                  value={form.note}
-                  onChange={e => handleFieldChange("note", e.target.value)}
-                  placeholder="Any notes for the business..."
-                  rows={3}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                />
+                <textarea value={form.note} onChange={e => handleFieldChange("note", e.target.value)}
+                  placeholder="Any notes for the business..." rows={3}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-60 transition text-base"
-              >
+              <button type="submit" disabled={submitting}
+                className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-60 transition text-base">
                 {submitting ? "Booking..." : isGroupService ? "Reserve My Spot" : "Book Now"}
               </button>
             </form>
