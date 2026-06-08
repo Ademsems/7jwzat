@@ -5,12 +5,11 @@ import { createClient } from "@supabase/supabase-js";
  * POST /api/create-booking
  *
  * Server-side booking creation. Uses the service-role key to:
- *   1. Check for double-booking (1-on-1) or capacity (group)
- *   2. Insert the booking
- *   3. Fire confirmation emails (non-blocking)
- *
- * All reads/writes go through the service role so RLS does not
- * interfere with the anonymous public visitor flow.
+ *   1. Upsert customer profile (Task 2A) — wrapped in try/catch so a
+ *      profile failure never blocks the booking itself.
+ *   2. Check for double-booking (1-on-1) or capacity (group)
+ *   3. Insert the booking with customer_id, staff_id, staff_preference
+ *   4. Fire confirmation emails (non-blocking)
  */
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -25,6 +24,9 @@ export async function POST(req: NextRequest) {
     notes,
     bookingDate,
     bookingTime,
+    // Staff (Task 3)
+    staffId,
+    staffPreference,
     // Email fields
     serviceName,
     duration,
@@ -42,8 +44,53 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  // ── 1. Upsert customer profile ─────────────────────────────────────────────
+  // Wrapped in try/catch — a profile issue must never block the booking.
+  let customerId: string | null = null;
+  try {
+    // Only track customers who have a real phone (blocked/manual use sentinels)
+    const realPhone = customerPhone && customerPhone !== "0000000000" ? customerPhone.trim() : null;
+
+    if (realPhone) {
+      // Try to find existing customer for this business + phone
+      const { data: existing } = await supabase
+        .from("customers")
+        .select("id, name, email")
+        .eq("user_id", businessId)
+        .eq("phone", realPhone)
+        .maybeSingle();
+
+      if (existing) {
+        customerId = existing.id;
+        // Update name/email if they've changed
+        const updates: Record<string, string> = {};
+        if (existing.name  !== customerName.trim())  updates.name  = customerName.trim();
+        if (customerEmail && existing.email !== customerEmail.trim()) updates.email = customerEmail.trim();
+        if (Object.keys(updates).length > 0) {
+          await supabase.from("customers").update(updates).eq("id", existing.id);
+        }
+      } else {
+        // Insert new customer record
+        const { data: newCust } = await supabase
+          .from("customers")
+          .insert({
+            user_id: businessId,
+            name:    customerName.trim(),
+            email:   customerEmail.trim() || null,
+            phone:   realPhone,
+          })
+          .select("id")
+          .single();
+        customerId = newCust?.id ?? null;
+      }
+    }
+  } catch (profileErr) {
+    // Log but do NOT return an error — booking proceeds without customer_id
+    console.error("create-booking: customer profile upsert failed (non-fatal):", profileErr);
+  }
+
+  // ── 2. Conflict check ──────────────────────────────────────────────────────
   if (groupSessionId) {
-    // ── Group session: check capacity ──────────────────────────────────────
     const [{ count }, { data: session }] = await Promise.all([
       supabase
         .from("bookings")
@@ -56,7 +103,6 @@ export async function POST(req: NextRequest) {
         .eq("id", groupSessionId)
         .single(),
     ]);
-
     if (session && (count ?? 0) >= session.capacity) {
       return NextResponse.json(
         { error: "Sorry, this session is now fully booked." },
@@ -64,7 +110,6 @@ export async function POST(req: NextRequest) {
       );
     }
   } else {
-    // ── 1-on-1: check for double booking ──────────────────────────────────
     if (!bookingDate || !bookingTime) {
       return NextResponse.json({ error: "Missing date/time" }, { status: 400 });
     }
@@ -84,11 +129,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Insert booking ─────────────────────────────────────────────────────────
+  // ── 3. Insert booking ──────────────────────────────────────────────────────
   const { error: insErr } = await supabase.from("bookings").insert({
     user_id:          businessId,
     service_id:       serviceId,
     group_session_id: groupSessionId ?? null,
+    customer_id:      customerId,
     customer_name:    customerName,
     customer_email:   customerEmail,
     customer_phone:   customerPhone,
@@ -97,6 +143,8 @@ export async function POST(req: NextRequest) {
     booking_time:     bookingTime,
     status:           "pending",
     booking_type:     "customer",
+    staff_id:         staffId   ?? null,
+    staff_preference: staffPreference ?? "any",
   });
 
   if (insErr) {
@@ -104,7 +152,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: insErr.message }, { status: 500 });
   }
 
-  // ── Fire confirmation emails (non-blocking) ───────────────────────────────
+  // ── 4. Fire confirmation emails (non-blocking) ─────────────────────────────
   const origin = new URL(req.url).origin;
   fetch(`${origin}/api/send-booking-emails`, {
     method: "POST",

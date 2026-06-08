@@ -22,7 +22,11 @@ interface Booking {
   group_session_id: string | null;
   service_id: string;
   service_name: string;
+  staff_id: string | null;
+  staff_preference: string | null;
 }
+
+interface StaffOption { id: string; name: string; }
 
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-AE", {
@@ -48,11 +52,12 @@ const STATUS_STYLES: Record<Status, string> = {
 
 export default function BookingsPage() {
   const router = useRouter();
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bookings, setBookings]       = useState<Booking[]>([]);
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState("");
+  const [updatingId, setUpdatingId]   = useState<string | null>(null);
+  const [deletingId, setDeletingId]   = useState<string | null>(null);
   const [businessName, setBusinessName] = useState("");
 
   useEffect(() => { init(); }, []);
@@ -60,37 +65,47 @@ export default function BookingsPage() {
   async function init() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/auth/login"); return; }
-    const { data: profile } = await supabase.from("users").select("business_name").eq("id", session.user.id).single();
+
+    const [{ data: profile }, { data: svcRows }, { data: bkRows }, { data: staffRows }] = await Promise.all([
+      supabase.from("users").select("business_name").eq("id", session.user.id).single(),
+      supabase.from("services").select("id, name"),
+      supabase.from("bookings").select("*").order("booking_date", { ascending: false }).order("booking_time", { ascending: false }),
+      supabase.from("staff").select("id, name").eq("user_id", session.user.id).eq("is_active", true).order("name"),
+    ]);
+
     if (profile) setBusinessName(profile.business_name);
-    await loadBookings();
-    setLoading(false);
-  }
 
-  async function loadBookings() {
-    const { data: bookingRows, error: bErr } = await supabase
-      .from("bookings")
-      .select("*")
-      .order("booking_date", { ascending: false })
-      .order("booking_time", { ascending: false });
-
-    if (bErr) { setError(getErr(bErr)); return; }
-
-    const { data: svcRows } = await supabase.from("services").select("id, name");
     const svcMap: Record<string, string> = {};
     (svcRows ?? []).forEach((s: { id: string; name: string }) => { svcMap[s.id] = s.name; });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setBookings((bookingRows ?? []).map((b: any) => ({
+    setBookings((bkRows ?? []).map((b: any) => ({
       ...b,
       service_name: svcMap[b.service_id as string] ?? "—",
     })));
+
+    setStaffOptions(staffRows ?? []);
+    setLoading(false);
   }
 
   async function handleStatusChange(id: string, status: Status) {
     setUpdatingId(id);
     const { error: upErr } = await supabase.from("bookings").update({ status }).eq("id", id);
-    if (upErr) { setError(getErr(upErr)); }
-    else { setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b)); }
+    if (upErr) setError(getErr(upErr));
+    else setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
+    setUpdatingId(null);
+  }
+
+  async function handleStaffChange(id: string, staffId: string) {
+    const resolved = staffId === "" ? null : staffId;
+    const name = staffOptions.find(s => s.id === resolved)?.name ?? null;
+    setUpdatingId(id);
+    const { error: upErr } = await supabase
+      .from("bookings")
+      .update({ staff_id: resolved, staff_preference: resolved ? name : "any" })
+      .eq("id", id);
+    if (upErr) setError(getErr(upErr));
+    else setBookings(prev => prev.map(b => b.id === id ? { ...b, staff_id: resolved, staff_preference: resolved ? name : "any" } : b));
     setUpdatingId(null);
   }
 
@@ -99,9 +114,16 @@ export default function BookingsPage() {
     if (!window.confirm(`Delete ${label}?`)) return;
     setDeletingId(booking.id);
     const { error: delErr } = await supabase.from("bookings").delete().eq("id", booking.id);
-    if (delErr) { setError(getErr(delErr)); }
-    else { setBookings(prev => prev.filter(b => b.id !== booking.id)); }
+    if (delErr) setError(getErr(delErr));
+    else setBookings(prev => prev.filter(b => b.id !== booking.id));
     setDeletingId(null);
+  }
+
+  function staffLabel(b: Booking) {
+    if (b.staff_id) {
+      return staffOptions.find(s => s.id === b.staff_id)?.name ?? b.staff_preference ?? "—";
+    }
+    return null; // show "Any" placeholder
   }
 
   if (loading) return (
@@ -147,6 +169,7 @@ export default function BookingsPage() {
                   <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Customer</th>
                   <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Service</th>
                   <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Date &amp; Time</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Staff</th>
                   <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Contact</th>
                   <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Status</th>
                   <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Actions</th>
@@ -157,10 +180,12 @@ export default function BookingsPage() {
                   const isBlocked = b.booking_type === "blocked";
                   const isManual  = b.booking_type === "manual";
                   const isGroup   = !!b.group_session_id;
+                  const sLabel    = staffLabel(b);
 
                   return (
                     <tr key={b.id} className={`hover:bg-gray-50 transition ${isBlocked ? "opacity-70" : ""}`}>
-                      {/* Customer / name */}
+
+                      {/* Customer */}
                       <td className="px-6 py-4">
                         {isBlocked ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
@@ -179,11 +204,9 @@ export default function BookingsPage() {
                             &#128101; Group
                           </span>
                         )}
-                        {/* Internal note (blocked / manual only) */}
                         {(isBlocked || isManual) && b.internal_note && (
                           <p className="text-xs text-gray-400 italic mt-1">{b.internal_note}</p>
                         )}
-                        {/* Customer notes */}
                         {!isBlocked && b.notes && (
                           <p className="text-xs text-gray-400 mt-0.5 max-w-[200px] truncate" title={b.notes}>
                             &#128221; {b.notes}
@@ -200,13 +223,39 @@ export default function BookingsPage() {
                         <p className="text-xs text-gray-400 mt-0.5">{fmtTime(b.booking_time)}</p>
                       </td>
 
+                      {/* Staff */}
+                      <td className="px-6 py-4">
+                        {isBlocked ? (
+                          <span className="text-gray-300 text-xs">—</span>
+                        ) : staffOptions.length === 0 ? (
+                          <span className="text-xs text-gray-400 italic">No staff</span>
+                        ) : (
+                          <select
+                            value={b.staff_id ?? ""}
+                            disabled={updatingId === b.id}
+                            onChange={e => handleStaffChange(b.id, e.target.value)}
+                            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 max-w-[130px]"
+                          >
+                            <option value="">
+                              {sLabel === null ? "Any / Unassigned" : "Any / Unassigned"}
+                            </option>
+                            {staffOptions.map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        )}
+                        {staffOptions.length > 0 && !b.staff_id && (
+                          <p className="text-xs text-gray-400 italic mt-0.5">Any</p>
+                        )}
+                      </td>
+
                       {/* Contact */}
                       <td className="px-6 py-4">
                         {isBlocked ? (
                           <span className="text-gray-300 text-xs">—</span>
                         ) : (
                           <>
-                            <p className="text-gray-700">{b.customer_email !== "noemail@internal" ? b.customer_email : "—"}</p>
+                            <p className="text-gray-700">{b.customer_email !== "blocked@internal" && b.customer_email !== "noemail@internal" ? b.customer_email : "—"}</p>
                             <p className="text-xs text-gray-400 mt-0.5">{b.customer_phone !== "0000000000" ? b.customer_phone : "—"}</p>
                           </>
                         )}
@@ -240,7 +289,7 @@ export default function BookingsPage() {
                           disabled={deletingId === b.id}
                           className="text-xs font-medium text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-60 transition"
                         >
-                          {deletingId === b.id ? "..." : "&#128465;&#65039; Delete"}
+                          {deletingId === b.id ? "..." : "Delete"}
                         </button>
                       </td>
                     </tr>

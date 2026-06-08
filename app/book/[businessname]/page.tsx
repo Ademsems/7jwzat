@@ -6,29 +6,22 @@ import { slugifyBusinessName } from "@/lib/slug";
 /**
  * Public booking page.
  *
- * ALL data fetching goes through server-side API routes that use the
- * Supabase service-role key.  This bypasses the RLS policies that
- * restrict the anon key to authenticated users' own rows.
+ * ALL data fetching goes through server-side API routes (service-role key).
  *
- * API routes used:
- *   GET  /api/booking-page-data?slug=   → business + services + hours + existing bookings
+ *   GET  /api/booking-page-data?slug=   → business + services + hours + bookings + staff
  *   GET  /api/group-sessions?businessId=&serviceId=  → upcoming group sessions
- *   POST /api/create-booking            → double-check + insert + emails
+ *   POST /api/create-booking            → upsert customer + insert booking + emails
  */
 
-/* ─── Types ─────────────────────────────────────────────── */
-interface Business { id: string; business_name: string; email: string; phone_number?: string | null; }
-interface Service  { id: string; name: string; duration: number; price: number; is_group_service: boolean; }
+/* ─── Types ──────────────────────────────────────────────── */
+interface Business   { id: string; business_name: string; email: string; }
+interface Service    { id: string; name: string; duration: number; price: number; is_group_service: boolean; }
+interface StaffMember { id: string; name: string; role: string | null; bio: string | null; }
 interface BusinessHour { day_of_week: number; start_time: string; end_time: string; }
 interface ExistingBooking { booking_date: string; booking_time: string; }
 interface GroupSession {
-  id: string;
-  service_id: string;
-  session_date: string;
-  session_time: string;
-  capacity: number;
-  notes: string | null;
-  booked_count: number;
+  id: string; service_id: string; session_date: string; session_time: string;
+  capacity: number; notes: string | null; booked_count: number;
 }
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -44,7 +37,6 @@ function generateSlots(start: string, end: string): string[] {
   }
   return slots;
 }
-
 function isoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -69,7 +61,7 @@ function MiniCalendar({ selected, onSelect, minDate, maxDate }:
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const [view, setView] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const year = view.getFullYear(), month = view.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
+  const firstDay    = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells: (number | null)[] = [...Array(firstDay).fill(null)];
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
@@ -87,11 +79,11 @@ function MiniCalendar({ selected, onSelect, minDate, maxDate }:
       <div className="grid grid-cols-7 gap-y-1">
         {cells.map((day, i) => {
           if (!day) return <div key={i} />;
-          const date = new Date(year, month, day);
+          const date    = new Date(year, month, day);
           const dateStr = isoDate(date);
           const isSelected = selected === dateStr;
-          const isToday = isoDate(today) === dateStr;
-          const disabled = date < minDate || date > maxDate;
+          const isToday    = isoDate(today) === dateStr;
+          const disabled   = date < minDate || date > maxDate;
           return (
             <button key={i} onClick={() => !disabled && onSelect(dateStr)} disabled={disabled}
               className={`mx-auto w-8 h-8 rounded-full text-sm flex items-center justify-center transition
@@ -108,64 +100,108 @@ function MiniCalendar({ selected, onSelect, minDate, maxDate }:
   );
 }
 
-/* ─── Main Page ──────────────────────────────────────────── */
+/* ─── Staff Card ─────────────────────────────────────────── */
+function StaffCard({ member, selected, onSelect }: {
+  member: StaffMember | null; // null = "No preference"
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`text-left p-4 rounded-xl border-2 transition w-full
+        ${selected
+          ? "border-emerald-500 bg-emerald-50"
+          : "border-gray-200 bg-white hover:border-emerald-300"}`}
+    >
+      <div className="flex items-start gap-3">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-base font-bold shrink-0
+          ${selected ? "bg-emerald-200 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+          {member ? member.name.charAt(0).toUpperCase() : "&#128100;"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-gray-800 text-sm">
+              {member ? member.name : "No preference"}
+            </p>
+            {selected && <span className="text-emerald-600 text-xs font-bold">&#10003;</span>}
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {member
+              ? (member.role ?? "Team member")
+              : "We'll assign the best available person"}
+          </p>
+          {member?.bio && (
+            <p className="text-xs text-gray-400 mt-1 line-clamp-2">{member.bio}</p>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/* ─── Form / booking constants ───────────────────────────── */
 const EMPTY_FORM   = { name: "", email: "", phone: "", note: "" };
 const EMPTY_ERRORS = { name: "", email: "", phone: "" };
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_RE     = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/* ─── Main Page ──────────────────────────────────────────── */
 export default function BookPage({ params }: { params: { businessname: string } }) {
   const businessSlug = slugifyBusinessName(decodeURIComponent(params.businessname));
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
   const [business, setBusiness] = useState<Business | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
-  const [hours, setHours] = useState<BusinessHour[]>([]);
+  const [hours, setHours]       = useState<BusinessHour[]>([]);
   const [existingBookings, setExistingBookings] = useState<ExistingBooking[]>([]);
+
+  // Staff
+  const [staffByService, setStaffByService] = useState<Record<string, StaffMember[]>>({});
+  const [hasStaff, setHasStaff]             = useState(false);
+  const [selectedStaff, setSelectedStaff]   = useState<StaffMember | null | "no-pref">("no-pref");
+  // "no-pref" = customer chose "No preference", null = not yet shown/selected, StaffMember = specific choice
 
   // 1-on-1 flow
   const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [slots, setSlots] = useState<string[]>([]);
-  const [closedDay, setClosedDay] = useState(false);
+  const [selectedDate, setSelectedDate]       = useState<string | null>(null);
+  const [selectedTime, setSelectedTime]       = useState<string | null>(null);
+  const [slots, setSlots]                     = useState<string[]>([]);
+  const [closedDay, setClosedDay]             = useState(false);
 
-  // Group session flow
-  const [groupSessions, setGroupSessions] = useState<GroupSession[]>([]);
+  // Group flow
+  const [groupSessions, setGroupSessions]     = useState<GroupSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<GroupSession | null>(null);
   const [loadingSessions, setLoadingSessions] = useState(false);
 
   // Booking form
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm]             = useState(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState(EMPTY_ERRORS);
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
+  const [formError, setFormError]   = useState("");
+  const [confirmed, setConfirmed]   = useState(false);
   const [confirmedData, setConfirmedData] = useState<{
     service: Service; date: string; time: string; name: string; email: string; isGroup: boolean;
   } | null>(null);
 
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const today   = new Date(); today.setHours(0, 0, 0, 0);
   const maxDate = new Date(today); maxDate.setDate(today.getDate() + 30);
 
   useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
     try {
-      const res = await fetch(`/api/booking-page-data?slug=${encodeURIComponent(businessSlug)}`);
+      const res  = await fetch(`/api/booking-page-data?slug=${encodeURIComponent(businessSlug)}`);
       if (res.status === 404) { setNotFound(true); setLoading(false); return; }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error("booking-page-data failed:", err);
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
+      if (!res.ok) { setNotFound(true); setLoading(false); return; }
       const data = await res.json();
       setBusiness(data.business);
       setServices(data.services ?? []);
       setHours(data.hours ?? []);
       setExistingBookings(data.existingBookings ?? []);
+      setStaffByService(data.staffByService ?? {});
+      setHasStaff(data.has_staff ?? false);
     } catch (e) {
       console.error("loadAll error:", e);
       setNotFound(true);
@@ -180,22 +216,17 @@ export default function BookPage({ params }: { params: { businessname: string } 
     setSelectedDate(null);
     setSelectedTime(null);
     setSelectedSession(null);
+    setSelectedStaff("no-pref");
     setFormError("");
 
     if (!isSame && svc.is_group_service && business) {
       setLoadingSessions(true);
       try {
-        const res = await fetch(
-          `/api/group-sessions?businessId=${encodeURIComponent(business.id)}&serviceId=${encodeURIComponent(svc.id)}`
-        );
+        const res  = await fetch(`/api/group-sessions?businessId=${encodeURIComponent(business.id)}&serviceId=${encodeURIComponent(svc.id)}`);
         const data = await res.json();
         setGroupSessions(data.sessions ?? []);
-      } catch (e) {
-        console.error("group-sessions fetch error:", e);
-        setGroupSessions([]);
-      } finally {
-        setLoadingSessions(false);
-      }
+      } catch { setGroupSessions([]); }
+      finally { setLoadingSessions(false); }
     } else {
       setGroupSessions([]);
     }
@@ -205,15 +236,11 @@ export default function BookPage({ params }: { params: { businessname: string } 
     setSelectedDate(dateStr);
     setSelectedTime(null);
     setFormError("");
-    const dow = new Date(dateStr + "T00:00:00").getDay();
+    const dow      = new Date(dateStr + "T00:00:00").getDay();
     const dayHours = hours.find(h => h.day_of_week === dow);
     if (!dayHours) { setClosedDay(true); setSlots([]); return; }
-
-    // Generate slots then remove already-taken times (incl. blocked/manual)
     const allSlots = generateSlots(dayHours.start_time, dayHours.end_time);
-    const taken = new Set(
-      existingBookings.filter(b => b.booking_date === dateStr).map(b => b.booking_time.slice(0, 5))
-    );
+    const taken    = new Set(existingBookings.filter(b => b.booking_date === dateStr).map(b => b.booking_time.slice(0, 5)));
     setClosedDay(false);
     setSlots(allSlots.filter(s => !taken.has(s)));
   }
@@ -221,15 +248,15 @@ export default function BookPage({ params }: { params: { businessname: string } 
   function validateForm(): boolean {
     const errs = { name: "", email: "", phone: "" };
     if (!form.name.trim() || form.name.trim().length < 2) errs.name = "Full name required (min 2 characters).";
-    if (!EMAIL_RE.test(form.email.trim())) errs.email = "Please enter a valid email address.";
+    if (!EMAIL_RE.test(form.email.trim()))                 errs.email = "Please enter a valid email address.";
     const digits = form.phone.replace(/\D/g, "");
-    if (digits.length < 10) errs.phone = "Phone must have at least 10 digits.";
+    if (digits.length < 10)                                errs.phone = "Phone must have at least 10 digits.";
     setFieldErrors(errs);
     return !errs.name && !errs.email && !errs.phone;
   }
   function handleFieldChange(field: "name" | "email" | "phone" | "note", val: string) {
     setForm(f => ({ ...f, [field]: val }));
-    if (field === "name") setFieldErrors(e => ({ ...e, name: val.trim().length >= 2 ? "" : "Full name required (min 2 characters)." }));
+    if (field === "name")  setFieldErrors(e => ({ ...e, name:  val.trim().length >= 2 ? "" : "Full name required (min 2 characters)." }));
     if (field === "email") setFieldErrors(e => ({ ...e, email: EMAIL_RE.test(val.trim()) ? "" : "Please enter a valid email address." }));
     if (field === "phone") {
       const d = val.replace(/\D/g, "");
@@ -243,58 +270,61 @@ export default function BookPage({ params }: { params: { businessname: string } 
     setFormError("");
     setSubmitting(true);
 
+    const resolvedStaff: StaffMember | null = selectedStaff === "no-pref" ? null : selectedStaff;
+
     try {
       const body = isGroup
         ? {
-            businessId: business.id,
-            serviceId: selectedService.id,
-            groupSessionId: selectedSession!.id,
-            bookingDate: selectedSession!.session_date,
-            bookingTime: selectedSession!.session_time,
-            customerName: form.name.trim(),
-            customerEmail: form.email.trim(),
-            customerPhone: form.phone.trim(),
-            notes: form.note.trim() || null,
-            serviceName: selectedService.name,
-            duration: selectedService.duration,
-            price: Number(selectedService.price),
-            businessName: business.business_name,
-            ownerEmail: business.email,
+            businessId:      business.id,
+            serviceId:       selectedService.id,
+            groupSessionId:  selectedSession!.id,
+            bookingDate:     selectedSession!.session_date,
+            bookingTime:     selectedSession!.session_time,
+            customerName:    form.name.trim(),
+            customerEmail:   form.email.trim(),
+            customerPhone:   form.phone.trim(),
+            notes:           form.note.trim() || null,
+            staffId:         resolvedStaff?.id   ?? null,
+            staffPreference: resolvedStaff?.name ?? "any",
+            serviceName:     selectedService.name,
+            duration:        selectedService.duration,
+            price:           Number(selectedService.price),
+            businessName:    business.business_name,
+            ownerEmail:      business.email,
           }
         : {
-            businessId: business.id,
-            serviceId: selectedService.id,
-            bookingDate: selectedDate!,
-            bookingTime: selectedTime!,
-            customerName: form.name.trim(),
-            customerEmail: form.email.trim(),
-            customerPhone: form.phone.trim(),
-            notes: form.note.trim() || null,
-            serviceName: selectedService.name,
-            duration: selectedService.duration,
-            price: Number(selectedService.price),
-            businessName: business.business_name,
-            ownerEmail: business.email,
+            businessId:      business.id,
+            serviceId:       selectedService.id,
+            bookingDate:     selectedDate!,
+            bookingTime:     selectedTime!,
+            customerName:    form.name.trim(),
+            customerEmail:   form.email.trim(),
+            customerPhone:   form.phone.trim(),
+            notes:           form.note.trim() || null,
+            staffId:         resolvedStaff?.id   ?? null,
+            staffPreference: resolvedStaff?.name ?? "any",
+            serviceName:     selectedService.name,
+            duration:        selectedService.duration,
+            price:           Number(selectedService.price),
+            businessName:    business.business_name,
+            ownerEmail:      business.email,
           };
 
-      const res = await fetch("/api/create-booking", {
+      const res  = await fetch("/api/create-booking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const data = await res.json();
 
-      if (!res.ok) {
-        setFormError(data.error ?? "Something went wrong. Please try again.");
-        return;
-      }
+      if (!res.ok) { setFormError(data.error ?? "Something went wrong. Please try again."); return; }
 
       setConfirmedData({
-        service: selectedService,
-        date: isGroup ? selectedSession!.session_date : selectedDate!,
-        time: isGroup ? selectedSession!.session_time : selectedTime!,
-        name: form.name.trim(),
-        email: form.email.trim(),
+        service:  selectedService,
+        date:     isGroup ? selectedSession!.session_date : selectedDate!,
+        time:     isGroup ? selectedSession!.session_time : selectedTime!,
+        name:     form.name.trim(),
+        email:    form.email.trim(),
         isGroup,
       });
       setConfirmed(true);
@@ -358,7 +388,6 @@ export default function BookPage({ params }: { params: { businessname: string } 
       <p className="text-gray-500">Loading...</p>
     </div>
   );
-
   if (notFound) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
       <div className="text-6xl mb-4">404</div>
@@ -367,9 +396,17 @@ export default function BookPage({ params }: { params: { businessname: string } 
     </div>
   );
 
-  const isGroupService  = !!selectedService?.is_group_service;
-  const readyForGroupForm = !!(selectedService && isGroupService && selectedSession);
-  const readyFor1on1Form  = !!(selectedService && !isGroupService && selectedDate && selectedTime);
+  const isGroupService       = !!selectedService?.is_group_service;
+  const serviceStaff         = selectedService ? (staffByService[selectedService.id] ?? []) : [];
+  const showStaffStep        = hasStaff && !!selectedService && serviceStaff.length > 0;
+  const staffStepComplete    = !showStaffStep || selectedStaff !== null;
+  const readyFor1on1Form     = !!(selectedService && !isGroupService && selectedDate && selectedTime && staffStepComplete);
+  const readyForGroupForm    = !!(selectedService && isGroupService && selectedSession && staffStepComplete);
+
+  // Step numbering shifts when staff step is shown
+  const dateStepNum  = showStaffStep ? 3 : 2;
+  const timeStepNum  = showStaffStep ? 4 : 3;
+  const formStepNum  = isGroupService ? (showStaffStep ? 3 : 2) : (showStaffStep ? 5 : 4);
 
   /* ─── Main Booking UI ────────────────────────────────────── */
   return (
@@ -399,7 +436,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
           </div>
         )}
 
-        {/* Step 1: Service */}
+        {/* STEP 1 — Service */}
         <section>
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
             <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold mr-2">1</span>
@@ -409,9 +446,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
             ? <p className="text-gray-400 text-sm">No services available.</p>
             : <div className="grid gap-3 sm:grid-cols-2">
                 {services.map(svc => (
-                  <button
-                    key={svc.id}
-                    onClick={() => handleServiceSelect(svc)}
+                  <button key={svc.id} onClick={() => handleServiceSelect(svc)}
                     className={`text-left p-4 rounded-xl border-2 transition
                       ${selectedService?.id === svc.id ? "border-indigo-500 bg-indigo-50" : "border-gray-200 bg-white hover:border-indigo-300"}`}
                   >
@@ -431,11 +466,40 @@ export default function BookPage({ params }: { params: { businessname: string } 
           }
         </section>
 
-        {/* ── GROUP FLOW: session picker ── */}
-        {selectedService && isGroupService && (
+        {/* STEP 1.5 — Staff selection (only if business has staff for this service) */}
+        {selectedService && showStaffStep && (
           <section>
             <h2 className="text-lg font-semibold text-gray-800 mb-4">
               <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold mr-2">2</span>
+              Choose a Team Member
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {/* No preference card — always first */}
+              <StaffCard
+                member={null}
+                selected={selectedStaff === "no-pref"}
+                onSelect={() => setSelectedStaff("no-pref")}
+              />
+              {/* Individual staff cards */}
+              {serviceStaff.map(member => (
+                <StaffCard
+                  key={member.id}
+                  member={member}
+                  selected={typeof selectedStaff === "object" && selectedStaff !== null && selectedStaff.id === member.id}
+                  onSelect={() => setSelectedStaff(member)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* GROUP FLOW — session picker */}
+        {selectedService && isGroupService && (
+          <section>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold mr-2">
+                {showStaffStep ? 3 : 2}
+              </span>
               Choose a Session
             </h2>
             {loadingSessions ? (
@@ -448,15 +512,14 @@ export default function BookPage({ params }: { params: { businessname: string } 
               <div className="space-y-3">
                 {groupSessions.map(session => {
                   const remaining = session.capacity - session.booked_count;
-                  const isFull = remaining <= 0;
-                  const isSelected = selectedSession?.id === session.id;
+                  const isFull    = remaining <= 0;
+                  const isSel     = selectedSession?.id === session.id;
                   return (
-                    <button
-                      key={session.id}
-                      onClick={() => { if (!isFull) { setSelectedSession(isSelected ? null : session); setFormError(""); } }}
+                    <button key={session.id}
+                      onClick={() => { if (!isFull) { setSelectedSession(isSel ? null : session); setFormError(""); } }}
                       disabled={isFull}
                       className={`w-full text-left p-4 rounded-xl border-2 transition
-                        ${isSelected ? "border-indigo-500 bg-indigo-50" : isFull ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed" : "border-gray-200 bg-white hover:border-indigo-300"}`}
+                        ${isSel ? "border-indigo-500 bg-indigo-50" : isFull ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed" : "border-gray-200 bg-white hover:border-indigo-300"}`}
                     >
                       <div className="flex items-center justify-between gap-4">
                         <div>
@@ -487,12 +550,14 @@ export default function BookPage({ params }: { params: { businessname: string } 
           </section>
         )}
 
-        {/* ── 1-ON-1 FLOW: date + time ── */}
+        {/* 1-ON-1 FLOW — date */}
         {selectedService && !isGroupService && (
           <>
             <section>
               <h2 className="text-lg font-semibold text-gray-800 mb-4">
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold mr-2">2</span>
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold mr-2">
+                  {dateStepNum}
+                </span>
                 Pick a Date
               </h2>
               <MiniCalendar selected={selectedDate} onSelect={handleDateSelect} minDate={today} maxDate={maxDate} />
@@ -501,11 +566,15 @@ export default function BookPage({ params }: { params: { businessname: string } 
             {selectedDate && (
               <section>
                 <h2 className="text-lg font-semibold text-gray-800 mb-4">
-                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold mr-2">3</span>
+                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold mr-2">
+                    {timeStepNum}
+                  </span>
                   Pick a Time
                 </h2>
                 {closedDay
-                  ? <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm">This business is closed on this day. Please pick another date.</div>
+                  ? <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm">
+                      This business is closed on this day. Please pick another date.
+                    </div>
                   : slots.length === 0
                     ? <p className="text-gray-400 text-sm">No available time slots for this date.</p>
                     : <div className="flex flex-wrap gap-2">
@@ -513,7 +582,9 @@ export default function BookPage({ params }: { params: { businessname: string } 
                           <button key={slot}
                             onClick={() => { setSelectedTime(slot === selectedTime ? null : slot); setFormError(""); }}
                             className={`px-4 py-2 rounded-lg text-sm font-medium border transition
-                              ${selectedTime === slot ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200 hover:border-indigo-400 hover:text-indigo-600"}`}
+                              ${selectedTime === slot
+                                ? "bg-indigo-600 text-white border-indigo-600"
+                                : "bg-white text-gray-700 border-gray-200 hover:border-indigo-400 hover:text-indigo-600"}`}
                           >
                             {slot}
                           </button>
@@ -525,16 +596,17 @@ export default function BookPage({ params }: { params: { businessname: string } 
           </>
         )}
 
-        {/* ── BOOKING FORM (both flows) ── */}
+        {/* BOOKING FORM */}
         {(readyFor1on1Form || readyForGroupForm) && (
           <section>
             <h2 className="text-lg font-semibold text-gray-800 mb-4">
               <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold mr-2">
-                {isGroupService ? "3" : "4"}
+                {formStepNum}
               </span>
               Your Details
             </h2>
 
+            {/* Summary bar */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-5 flex flex-wrap gap-x-6 gap-y-1 text-sm">
               <span><span className="text-gray-500">Service:</span> <strong>{selectedService!.name}</strong></span>
               <span><span className="text-gray-500">Price:</span> <strong className="text-indigo-600">AED {Number(selectedService!.price).toFixed(2)}</strong></span>
@@ -548,6 +620,16 @@ export default function BookPage({ params }: { params: { businessname: string } 
                     <span><span className="text-gray-500">Time:</span> <strong>{selectedTime}</strong></span>
                   </>
               }
+              {showStaffStep && (
+                <span>
+                  <span className="text-gray-500">Team member:</span>{" "}
+                  <strong>
+                    {selectedStaff === "no-pref" || selectedStaff === null
+                      ? "No preference"
+                      : (selectedStaff as StaffMember).name}
+                  </strong>
+                </span>
+              )}
             </div>
 
             <form

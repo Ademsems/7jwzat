@@ -5,27 +5,20 @@ import { createClient } from "@supabase/supabase-js";
  * GET /api/booking-page-data?slug=<slug>
  *
  * Returns ALL data the public booking page needs in one call:
- *   business, services, hours, existingBookings (next 30 days)
- *
- * Uses the service-role key so Supabase RLS does not block the
- * anonymous public visitor.  The anon key would return empty arrays
- * for users / services / business_hours (user-only RLS policies).
- *
- * The slug is matched client-side via the same slugify function used
- * by bookingUrl(). We inline it here to avoid any import-resolution
- * issues inside the Next.js API route runtime.
+ *   business, services, hours, existingBookings (next 30 days),
+ *   staff (active staff per service), has_staff flag
  */
 
 function slugify(name: string): string {
   return name
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // strip combining diacritics
-    .replace(/[''`]/g, "")            // remove apostrophes
-    .replace(/[^a-z0-9\s-]/g, "")    // keep only safe chars
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[''`]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
     .trim()
-    .replace(/\s+/g, "-")            // spaces → hyphens
-    .replace(/-+/g, "-");            // collapse repeated hyphens
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
 }
 
 function localDateStr(offsetDays = 0): string {
@@ -49,20 +42,17 @@ export async function GET(req: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  // DIAGNOSTIC — visible in Vercel function logs
   console.log("[booking-page-data] incoming slug:", slug);
-  console.log("[booking-page-data] SUPABASE_URL set:", !!supabaseUrl);
   console.log("[booking-page-data] SERVICE_ROLE_KEY set:", !!serviceKey);
-  console.log("[booking-page-data] SERVICE_ROLE_KEY first 12 chars:", serviceKey ? serviceKey.slice(0, 12) : "MISSING");
 
   if (!supabaseUrl || !serviceKey) {
-    console.error("[booking-page-data] FATAL: missing env vars — add SUPABASE_SERVICE_ROLE_KEY to Vercel env");
-    return NextResponse.json({ error: "Server configuration error — missing env vars" }, { status: 500 });
+    console.error("[booking-page-data] FATAL: missing env vars");
+    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
   const supabase = createClient(supabaseUrl, serviceKey);
 
-  // ── 1. Find business by slug ──────────────────────────────────────────────
+  // ── 1. Find business by slug ───────────────────────────────────────────────
   const { data: users, error: userErr } = await supabase
     .from("users")
     .select("id, business_name, email");
@@ -77,7 +67,8 @@ export async function GET(req: NextRequest) {
   );
 
   if (!business) {
-    console.log(`booking-page-data: no match for slug="${slug}". Businesses in DB:`,
+    console.log(
+      `booking-page-data: no match for slug="${slug}". Businesses in DB:`,
       (users ?? []).map((u: { business_name: string }) => ({
         name: u.business_name,
         slug: slugify(u.business_name),
@@ -86,11 +77,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Business not found" }, { status: 404 });
   }
 
-  // ── 2. Fetch services, hours, existing bookings in parallel ───────────────
+  // ── 2. Fetch services, hours, bookings, and staff in parallel ──────────────
   const today   = localDateStr(0);
   const maxDate = localDateStr(30);
 
-  const [svcRes, hrRes, bkRes] = await Promise.all([
+  const [svcRes, hrRes, bkRes, staffRes, ssRes] = await Promise.all([
     supabase
       .from("services")
       .select("id, name, duration, price, is_group_service")
@@ -107,16 +98,43 @@ export async function GET(req: NextRequest) {
       .gte("booking_date", today)
       .lte("booking_date", maxDate)
       .neq("status", "cancelled"),
+    // Active staff members for this business
+    supabase
+      .from("staff")
+      .select("id, name, role, bio")
+      .eq("user_id", business.id)
+      .eq("is_active", true)
+      .order("created_at"),
+    // Staff ↔ service assignments
+    supabase
+      .from("staff_services")
+      .select("staff_id, service_id"),
   ]);
 
-  if (svcRes.error)  console.error("booking-page-data: services error:",  svcRes.error.message);
-  if (hrRes.error)   console.error("booking-page-data: hours error:",     hrRes.error.message);
-  if (bkRes.error)   console.error("booking-page-data: bookings error:",  bkRes.error.message);
+  if (svcRes.error)   console.error("booking-page-data: services error:",  svcRes.error.message);
+  if (hrRes.error)    console.error("booking-page-data: hours error:",     hrRes.error.message);
+  if (bkRes.error)    console.error("booking-page-data: bookings error:",  bkRes.error.message);
+  if (staffRes.error) console.error("booking-page-data: staff error:",     staffRes.error.message);
+
+  // Build staffByService map: { [serviceId]: StaffMember[] }
+  const allStaff = staffRes.data ?? [];
+  const staffMap: Record<string, { id: string; name: string; role: string | null; bio: string | null }[]> = {};
+  const ssRows = ssRes.data ?? [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ssRows.forEach((row: any) => {
+    const member = allStaff.find((s: { id: string }) => s.id === row.staff_id);
+    if (!member) return;
+    if (!staffMap[row.service_id]) staffMap[row.service_id] = [];
+    staffMap[row.service_id].push(member);
+  });
 
   return NextResponse.json({
     business,
-    services:        svcRes.data ?? [],
-    hours:           hrRes.data  ?? [],
-    existingBookings: bkRes.data ?? [],
+    services:         svcRes.data ?? [],
+    hours:            hrRes.data  ?? [],
+    existingBookings: bkRes.data  ?? [],
+    staffByService:   staffMap,
+    has_staff:        allStaff.length > 0,
   });
 }

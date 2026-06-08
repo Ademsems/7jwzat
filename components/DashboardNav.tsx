@@ -9,6 +9,8 @@ const NAV_ITEMS = [
   { label: "Dashboard",      href: "/dashboard",                icon: "\u{1F3E0}" },
   { label: "Services",       href: "/dashboard/services",       icon: "\u{2702}️" },
   { label: "Sessions",       href: "/dashboard/sessions",       icon: "\u{1F465}" },
+  { label: "Staff",          href: "/dashboard/staff",          icon: "\u{1F465}\u{200D}\u{1F91D}\u{200D}\u{1F465}" },
+  { label: "Customers",      href: "/dashboard/customers",      icon: "\u{1F464}" },
   { label: "Business Hours", href: "/dashboard/business-hours", icon: "\u{1F550}" },
   { label: "Bookings",       href: "/dashboard/bookings",       icon: "\u{1F4C5}" },
   { label: "Settings",       href: "/dashboard/settings",       icon: "\u{2699}️" },
