@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { label: "Dashboard",      href: "/dashboard",                icon: "\u{1F3E0}" },
   { label: "Analytics",      href: "/dashboard/analytics",      icon: "\u{1F4CA}" },
   { label: "Services",       href: "/dashboard/services",       icon: "\u{2702}️" },
+  { label: "Custom Fields",  href: "/dashboard/custom-fields",  icon: "\u{1F4DD}" },
   { label: "Sessions",       href: "/dashboard/sessions",       icon: "\u{1F465}" },
   { label: "Staff",          href: "/dashboard/staff",          icon: "\u{1F465}\u{200D}\u{1F91D}\u{200D}\u{1F465}" },
   { label: "Customers",      href: "/dashboard/customers",      icon: "\u{1F464}" },

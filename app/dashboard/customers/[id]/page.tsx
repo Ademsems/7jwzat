@@ -28,6 +28,9 @@ interface BookingRow {
 
 type Status = "pending" | "confirmed" | "completed" | "cancelled";
 
+interface CfAnswer { custom_field_id: string; answer: string; label: string; }
+type AnswersMap = Record<string, CfAnswer[]>; // bookingId → answers
+
 const STATUS_STYLES: Record<string, string> = {
   pending:   "bg-yellow-100 text-yellow-800",
   confirmed: "bg-green-100  text-green-800",
@@ -58,6 +61,8 @@ export default function CustomerDetailPage() {
   const [savingNotes, setSavingNotes] = useState(false);
   const [loading, setLoading]     = useState(true);
   const [notFound, setNotFound]   = useState(false);
+  const [answersMap, setAnswersMap]   = useState<AnswersMap>({});
+  const [expandedAnswers, setExpandedAnswers] = useState<Set<string>>(new Set());
 
   useEffect(() => { init(); }, [id]);
 
@@ -94,14 +99,36 @@ export default function CustomerDetailPage() {
       (svcData   ?? []).forEach((s: { id: string; name: string }) => { svcMap[s.id]   = s.name; });
       (staffData ?? []).forEach((s: { id: string; name: string }) => { staffMap[s.id] = s.name; });
 
-      setBookings(bkData.map((b: {
+      const bookingList = bkData.map((b: {
         id: string; booking_date: string; booking_time: string;
         status: string; service_id: string; staff_id: string | null;
       }) => ({
         ...b,
         service_name: svcMap[b.service_id]  ?? "—",
         staff_name:   b.staff_id ? (staffMap[b.staff_id] ?? "—") : null,
-      })));
+      }));
+      setBookings(bookingList);
+
+      // Fetch custom field answers for these bookings
+      const bkIds = bookingList.map((b: { id: string }) => b.id);
+      if (bkIds.length > 0) {
+        const { data: cfaRows } = await supabase
+          .from("custom_field_answers")
+          .select("booking_id, custom_field_id, answer, custom_fields(label)")
+          .in("booking_id", bkIds);
+
+        const map: AnswersMap = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (cfaRows ?? []).forEach((row: any) => {
+          if (!map[row.booking_id]) map[row.booking_id] = [];
+          map[row.booking_id].push({
+            custom_field_id: row.custom_field_id,
+            answer: row.answer,
+            label: row.custom_fields?.label ?? row.custom_field_id,
+          });
+        });
+        setAnswersMap(map);
+      }
     }
 
     setLoading(false);
@@ -117,6 +144,14 @@ export default function CustomerDetailPage() {
     if (error) showToast("Failed to save notes.");
     else showToast("Notes saved.");
     setSavingNotes(false);
+  }
+
+  function toggleAnswers(bkId: string) {
+    setExpandedAnswers(prev => {
+      const next = new Set(prev);
+      next.has(bkId) ? next.delete(bkId) : next.add(bkId);
+      return next;
+    });
   }
 
   if (loading) return (
@@ -215,11 +250,12 @@ export default function CustomerDetailPage() {
                   <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Service</th>
                   <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Staff</th>
                   <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Status</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Answers</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {bookings.map(b => (
-                  <tr key={b.id} className="hover:bg-gray-50 transition">
+                  <tr key={b.id} className="hover:bg-gray-50 transition align-top">
                     <td className="px-6 py-3 text-gray-700">{fmtDate(b.booking_date)}</td>
                     <td className="px-6 py-3 text-gray-700">{fmtTime(b.booking_time)}</td>
                     <td className="px-6 py-3 text-gray-700">{b.service_name}</td>
@@ -231,6 +267,30 @@ export default function CustomerDetailPage() {
                         ${STATUS_STYLES[b.status as Status] ?? "bg-gray-100 text-gray-500"}`}>
                         {b.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-3">
+                      {answersMap[b.id] && answersMap[b.id].length > 0 ? (
+                        <div>
+                          <button
+                            onClick={() => toggleAnswers(b.id)}
+                            className="text-xs text-indigo-600 hover:underline whitespace-nowrap"
+                          >
+                            {expandedAnswers.has(b.id) ? "▾ Hide" : `▸ View (${answersMap[b.id].length})`}
+                          </button>
+                          {expandedAnswers.has(b.id) && (
+                            <div className="mt-1.5 space-y-1">
+                              {answersMap[b.id].map(a => (
+                                <p key={a.custom_field_id} className="text-xs text-gray-600">
+                                  <span className="font-medium">{a.label}:</span>{" "}
+                                  <span className="text-gray-500">{a.answer}</span>
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

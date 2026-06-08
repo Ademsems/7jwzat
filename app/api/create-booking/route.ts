@@ -27,6 +27,8 @@ export async function POST(req: NextRequest) {
     // Staff (Task 3)
     staffId,
     staffPreference,
+    // Custom field answers — array of {customFieldId, answer}
+    customFieldAnswers,
     // Email fields
     serviceName,
     duration,
@@ -152,7 +154,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: insErr.message }, { status: 500 });
   }
 
-  // ── 4. Fire confirmation emails (non-blocking) ─────────────────────────────
+  // ── 4. Save custom field answers (non-blocking — never block booking) ────────
+  try {
+    if (
+      customFieldAnswers &&
+      Array.isArray(customFieldAnswers) &&
+      customFieldAnswers.length > 0
+    ) {
+      // Get the id of the booking we just inserted
+      const { data: newBooking } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("user_id", businessId)
+        .eq("booking_date", bookingDate ?? null)
+        .eq("booking_time", bookingTime ?? null)
+        .eq("customer_email", customerEmail)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (newBooking?.id) {
+        const rows = (customFieldAnswers as { customFieldId: string; answer: string }[])
+          .filter(a => a.answer && a.answer.trim())
+          .map(a => ({
+            booking_id:      newBooking.id,
+            custom_field_id: a.customFieldId,
+            answer:          a.answer.trim(),
+          }));
+        if (rows.length > 0) {
+          await supabase.from("custom_field_answers").insert(rows);
+        }
+      }
+    }
+  } catch (cfErr) {
+    console.error("create-booking: custom field answers save failed (non-fatal):", cfErr);
+  }
+
+  // ── 5. Fire confirmation emails (non-blocking) ─────────────────────────────
   const origin = new URL(req.url).origin;
   fetch(`${origin}/api/send-booking-emails`, {
     method: "POST",

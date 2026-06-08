@@ -28,6 +28,10 @@ interface Booking {
 
 interface StaffOption { id: string; name: string; }
 
+interface CfAnswer { custom_field_id: string; answer: string; label: string; }
+// Map: bookingId → CfAnswer[]
+type AnswersMap = Record<string, CfAnswer[]>;
+
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-AE", {
     weekday: "short", month: "short", day: "numeric", year: "numeric",
@@ -59,6 +63,8 @@ export default function BookingsPage() {
   const [updatingId, setUpdatingId]   = useState<string | null>(null);
   const [deletingId, setDeletingId]   = useState<string | null>(null);
   const [businessName, setBusinessName] = useState("");
+  const [answersMap, setAnswersMap]   = useState<AnswersMap>({});
+  const [expandedAnswers, setExpandedAnswers] = useState<Set<string>>(new Set());
 
   useEffect(() => { init(); }, []);
 
@@ -79,10 +85,32 @@ export default function BookingsPage() {
     (svcRows ?? []).forEach((s: { id: string; name: string }) => { svcMap[s.id] = s.name; });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setBookings((bkRows ?? []).map((b: any) => ({
+    const bookingList = (bkRows ?? []).map((b: any) => ({
       ...b,
       service_name: svcMap[b.service_id as string] ?? "—",
-    })));
+    }));
+    setBookings(bookingList);
+
+    // Fetch custom field answers for all bookings in one query
+    if (bookingList.length > 0) {
+      const bkIds = bookingList.map((b: { id: string }) => b.id);
+      const { data: cfaRows } = await supabase
+        .from("custom_field_answers")
+        .select("booking_id, custom_field_id, answer, custom_fields(label)")
+        .in("booking_id", bkIds);
+
+      const map: AnswersMap = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (cfaRows ?? []).forEach((row: any) => {
+        if (!map[row.booking_id]) map[row.booking_id] = [];
+        map[row.booking_id].push({
+          custom_field_id: row.custom_field_id,
+          answer: row.answer,
+          label: row.custom_fields?.label ?? row.custom_field_id,
+        });
+      });
+      setAnswersMap(map);
+    }
 
     setStaffOptions(staffRows ?? []);
     setLoading(false);
@@ -124,6 +152,14 @@ export default function BookingsPage() {
       return staffOptions.find(s => s.id === b.staff_id)?.name ?? b.staff_preference ?? "—";
     }
     return null; // show "Any" placeholder
+  }
+
+  function toggleAnswers(id: string) {
+    setExpandedAnswers(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   }
 
   if (loading) return (
@@ -211,6 +247,27 @@ export default function BookingsPage() {
                           <p className="text-xs text-gray-400 mt-0.5 max-w-[200px] truncate" title={b.notes}>
                             &#128221; {b.notes}
                           </p>
+                        )}
+                        {/* Custom field answers */}
+                        {!isBlocked && answersMap[b.id] && answersMap[b.id].length > 0 && (
+                          <div className="mt-1">
+                            <button
+                              onClick={() => toggleAnswers(b.id)}
+                              className="text-xs text-indigo-600 hover:underline"
+                            >
+                              {expandedAnswers.has(b.id) ? "▾ Hide answers" : "▸ Custom answers"}
+                            </button>
+                            {expandedAnswers.has(b.id) && (
+                              <div className="mt-1.5 space-y-1">
+                                {answersMap[b.id].map(a => (
+                                  <p key={a.custom_field_id} className="text-xs text-gray-600">
+                                    <span className="font-medium">{a.label}:</span>{" "}
+                                    <span className="text-gray-500">{a.answer}</span>
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
 

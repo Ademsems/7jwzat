@@ -34,7 +34,8 @@ function localDateStr(offsetDays = 0): string {
 }
 
 export async function GET(req: NextRequest) {
-  const slug = req.nextUrl.searchParams.get("slug");
+  const slug      = req.nextUrl.searchParams.get("slug");
+  const serviceId = req.nextUrl.searchParams.get("serviceId"); // optional
   if (!slug) {
     return NextResponse.json({ error: "Missing slug" }, { status: 400 });
   }
@@ -77,11 +78,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Business not found" }, { status: 404 });
   }
 
-  // ── 2. Fetch services, hours, bookings, and staff in parallel ──────────────
+  // ── 2. Fetch services, hours, bookings, staff, and custom fields in parallel ─
   const today   = localDateStr(0);
   const maxDate = localDateStr(30);
 
-  const [svcRes, hrRes, bkRes, staffRes, ssRes] = await Promise.all([
+  const [svcRes, hrRes, bkRes, staffRes, ssRes, cfRes, cfsRes] = await Promise.all([
     supabase
       .from("services")
       .select("id, name, duration, price, is_group_service")
@@ -109,12 +110,26 @@ export async function GET(req: NextRequest) {
     supabase
       .from("staff_services")
       .select("staff_id, service_id"),
+    // Custom fields: apply_to_all=true for this business
+    supabase
+      .from("custom_fields")
+      .select("id, label, placeholder, is_required")
+      .eq("user_id", business.id)
+      .eq("apply_to_all", true),
+    // Service-specific custom fields (only when serviceId provided)
+    serviceId
+      ? supabase
+          .from("custom_field_services")
+          .select("custom_field_id")
+          .eq("service_id", serviceId)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
-  if (svcRes.error)   console.error("booking-page-data: services error:",  svcRes.error.message);
-  if (hrRes.error)    console.error("booking-page-data: hours error:",     hrRes.error.message);
-  if (bkRes.error)    console.error("booking-page-data: bookings error:",  bkRes.error.message);
-  if (staffRes.error) console.error("booking-page-data: staff error:",     staffRes.error.message);
+  if (svcRes.error)   console.error("booking-page-data: services error:",      svcRes.error.message);
+  if (hrRes.error)    console.error("booking-page-data: hours error:",         hrRes.error.message);
+  if (bkRes.error)    console.error("booking-page-data: bookings error:",      bkRes.error.message);
+  if (staffRes.error) console.error("booking-page-data: staff error:",         staffRes.error.message);
+  if (cfRes.error)    console.error("booking-page-data: custom_fields error:", cfRes.error.message);
 
   // Build staffByService map: { [serviceId]: StaffMember[] }
   const allStaff = staffRes.data ?? [];
@@ -129,6 +144,29 @@ export async function GET(req: NextRequest) {
     staffMap[row.service_id].push(member);
   });
 
+  // Build custom fields list:
+  //   - all apply_to_all=true fields
+  //   - plus any service-specific fields (when serviceId provided)
+  let customFields: { id: string; label: string; placeholder: string | null; is_required: boolean }[] =
+    cfRes.data ?? [];
+
+  if (serviceId && cfsRes.data && cfsRes.data.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const specificFieldIds = (cfsRes.data as any[]).map((r: { custom_field_id: string }) => r.custom_field_id);
+    if (specificFieldIds.length > 0) {
+      const { data: specificFields } = await supabase
+        .from("custom_fields")
+        .select("id, label, placeholder, is_required")
+        .in("id", specificFieldIds);
+
+      // Merge, dedup by id
+      const seen = new Set(customFields.map((f) => f.id));
+      for (const f of (specificFields ?? [])) {
+        if (!seen.has(f.id)) { customFields.push(f); seen.add(f.id); }
+      }
+    }
+  }
+
   return NextResponse.json({
     business,
     services:         svcRes.data ?? [],
@@ -136,5 +174,6 @@ export async function GET(req: NextRequest) {
     existingBookings: bkRes.data  ?? [],
     staffByService:   staffMap,
     has_staff:        allStaff.length > 0,
+    customFields,
   });
 }

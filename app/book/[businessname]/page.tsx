@@ -23,6 +23,7 @@ interface GroupSession {
   id: string; service_id: string; session_date: string; session_time: string;
   capacity: number; notes: string | null; booked_count: number;
 }
+interface CustomField { id: string; label: string; placeholder: string | null; is_required: boolean; }
 
 /* ─── Helpers ────────────────────────────────────────────── */
 function generateSlots(start: string, end: string): string[] {
@@ -144,6 +145,7 @@ function StaffCard({ member, selected, onSelect }: {
 /* ─── Form / booking constants ───────────────────────────── */
 const EMPTY_FORM   = { name: "", email: "", phone: "", note: "" };
 const EMPTY_ERRORS = { name: "", email: "", phone: "" };
+type CustomFieldAnswers = Record<string, string>; // fieldId → answer
 const EMAIL_RE     = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /* ─── Main Page ──────────────────────────────────────────── */
@@ -174,6 +176,11 @@ export default function BookPage({ params }: { params: { businessname: string } 
   const [groupSessions, setGroupSessions]     = useState<GroupSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<GroupSession | null>(null);
   const [loadingSessions, setLoadingSessions] = useState(false);
+
+  // Custom fields
+  const [customFields, setCustomFields]         = useState<CustomField[]>([]);
+  const [customAnswers, setCustomAnswers]       = useState<CustomFieldAnswers>({});
+  const [customErrors, setCustomErrors]         = useState<Record<string, string>>({});
 
   // Booking form
   const [form, setForm]             = useState(EMPTY_FORM);
@@ -218,6 +225,19 @@ export default function BookPage({ params }: { params: { businessname: string } 
     setSelectedSession(null);
     setSelectedStaff("no-pref");
     setFormError("");
+    setCustomAnswers({});
+    setCustomErrors({});
+
+    if (!isSame && business) {
+      // Fetch custom fields for this service (apply_to_all + service-specific)
+      try {
+        const res  = await fetch(`/api/booking-page-data?slug=${encodeURIComponent(businessSlug)}&serviceId=${encodeURIComponent(svc.id)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCustomFields(data.customFields ?? []);
+        }
+      } catch { setCustomFields([]); }
+    }
 
     if (!isSame && svc.is_group_service && business) {
       setLoadingSessions(true);
@@ -252,7 +272,17 @@ export default function BookPage({ params }: { params: { businessname: string } 
     const digits = form.phone.replace(/\D/g, "");
     if (digits.length < 10)                                errs.phone = "Phone must have at least 10 digits.";
     setFieldErrors(errs);
-    return !errs.name && !errs.email && !errs.phone;
+
+    // Validate required custom fields
+    const cfErrs: Record<string, string> = {};
+    customFields.forEach(f => {
+      if (f.is_required && !(customAnswers[f.id] ?? "").trim()) {
+        cfErrs[f.id] = `${f.label} is required.`;
+      }
+    });
+    setCustomErrors(cfErrs);
+
+    return !errs.name && !errs.email && !errs.phone && Object.keys(cfErrs).length === 0;
   }
   function handleFieldChange(field: "name" | "email" | "phone" | "note", val: string) {
     setForm(f => ({ ...f, [field]: val }));
@@ -272,42 +302,49 @@ export default function BookPage({ params }: { params: { businessname: string } 
 
     const resolvedStaff: StaffMember | null = selectedStaff === "no-pref" ? null : selectedStaff;
 
+    // Build customFieldAnswers array
+    const customFieldAnswers = customFields
+      .map(f => ({ customFieldId: f.id, answer: (customAnswers[f.id] ?? "").trim() }))
+      .filter(a => a.answer);
+
     try {
       const body = isGroup
         ? {
-            businessId:      business.id,
-            serviceId:       selectedService.id,
-            groupSessionId:  selectedSession!.id,
-            bookingDate:     selectedSession!.session_date,
-            bookingTime:     selectedSession!.session_time,
-            customerName:    form.name.trim(),
-            customerEmail:   form.email.trim(),
-            customerPhone:   form.phone.trim(),
-            notes:           form.note.trim() || null,
-            staffId:         resolvedStaff?.id   ?? null,
-            staffPreference: resolvedStaff?.name ?? "any",
-            serviceName:     selectedService.name,
-            duration:        selectedService.duration,
-            price:           Number(selectedService.price),
-            businessName:    business.business_name,
-            ownerEmail:      business.email,
+            businessId:         business.id,
+            serviceId:          selectedService.id,
+            groupSessionId:     selectedSession!.id,
+            bookingDate:        selectedSession!.session_date,
+            bookingTime:        selectedSession!.session_time,
+            customerName:       form.name.trim(),
+            customerEmail:      form.email.trim(),
+            customerPhone:      form.phone.trim(),
+            notes:              form.note.trim() || null,
+            staffId:            resolvedStaff?.id   ?? null,
+            staffPreference:    resolvedStaff?.name ?? "any",
+            customFieldAnswers,
+            serviceName:        selectedService.name,
+            duration:           selectedService.duration,
+            price:              Number(selectedService.price),
+            businessName:       business.business_name,
+            ownerEmail:         business.email,
           }
         : {
-            businessId:      business.id,
-            serviceId:       selectedService.id,
-            bookingDate:     selectedDate!,
-            bookingTime:     selectedTime!,
-            customerName:    form.name.trim(),
-            customerEmail:   form.email.trim(),
-            customerPhone:   form.phone.trim(),
-            notes:           form.note.trim() || null,
-            staffId:         resolvedStaff?.id   ?? null,
-            staffPreference: resolvedStaff?.name ?? "any",
-            serviceName:     selectedService.name,
-            duration:        selectedService.duration,
-            price:           Number(selectedService.price),
-            businessName:    business.business_name,
-            ownerEmail:      business.email,
+            businessId:         business.id,
+            serviceId:          selectedService.id,
+            bookingDate:        selectedDate!,
+            bookingTime:        selectedTime!,
+            customerName:       form.name.trim(),
+            customerEmail:      form.email.trim(),
+            customerPhone:      form.phone.trim(),
+            notes:              form.note.trim() || null,
+            staffId:            resolvedStaff?.id   ?? null,
+            staffPreference:    resolvedStaff?.name ?? "any",
+            customFieldAnswers,
+            serviceName:        selectedService.name,
+            duration:           selectedService.duration,
+            price:              Number(selectedService.price),
+            businessName:       business.business_name,
+            ownerEmail:         business.email,
           };
 
       const res  = await fetch("/api/create-booking", {
@@ -660,6 +697,37 @@ export default function BookPage({ params }: { params: { businessname: string } 
                   className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${fieldErrors.phone ? "border-red-400 bg-red-50" : "border-gray-300"}`} />
                 {fieldErrors.phone && <p className="text-red-600 text-xs mt-1">{fieldErrors.phone}</p>}
               </div>
+
+              {/* Custom fields */}
+              {customFields.map(cf => (
+                <div key={cf.id}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {cf.label}
+                    {cf.is_required
+                      ? <span className="text-red-500 ml-0.5">*</span>
+                      : <span className="text-gray-400 font-normal ml-1">(optional)</span>}
+                  </label>
+                  <input
+                    type="text"
+                    value={customAnswers[cf.id] ?? ""}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setCustomAnswers(a => ({ ...a, [cf.id]: val }));
+                      if (cf.is_required && val.trim()) {
+                        setCustomErrors(errs => { const n = { ...errs }; delete n[cf.id]; return n; });
+                      }
+                    }}
+                    placeholder={cf.placeholder ?? ""}
+                    className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                      customErrors[cf.id] ? "border-red-400 bg-red-50" : "border-gray-300"
+                    }`}
+                  />
+                  {customErrors[cf.id] && (
+                    <p className="text-red-600 text-xs mt-1">{customErrors[cf.id]}</p>
+                  )}
+                </div>
+              ))}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Special Requests <span className="text-gray-400 font-normal">(optional)</span>
