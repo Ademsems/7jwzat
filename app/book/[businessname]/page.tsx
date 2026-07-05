@@ -154,7 +154,8 @@ export default function BookPage({ params }: { params: { businessname: string } 
 
   const [loading, setLoading]   = useState(true);
   const [business, setBusiness] = useState<Business | null>(null);
-  const [notFound, setNotFound] = useState(false);
+  const [notFound, setNotFound] = useState(false);   // API said: no such business
+  const [loadError, setLoadError] = useState(false); // API failed / network error
   const [services, setServices] = useState<Service[]>([]);
   const [hours, setHours]       = useState<BusinessHour[]>([]);
   const [existingBookings, setExistingBookings] = useState<ExistingBooking[]>([]);
@@ -198,10 +199,15 @@ export default function BookPage({ params }: { params: { businessname: string } 
   useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
+    setLoading(true);
+    setLoadError(false);
+    setNotFound(false);
     try {
       const res  = await fetch(`/api/booking-page-data?slug=${encodeURIComponent(businessSlug)}`);
+      // 404 = API answered but no business matches the slug
       if (res.status === 404) { setNotFound(true); setLoading(false); return; }
-      if (!res.ok) { setNotFound(true); setLoading(false); return; }
+      // Any other failure = server/network problem, NOT a missing business
+      if (!res.ok) { setLoadError(true); setLoading(false); return; }
       const data = await res.json();
       setBusiness(data.business);
       setServices(data.services ?? []);
@@ -211,7 +217,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
       setHasStaff(data.has_staff ?? false);
     } catch (e) {
       console.error("loadAll error:", e);
-      setNotFound(true);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -243,9 +249,17 @@ export default function BookPage({ params }: { params: { businessname: string } 
       setLoadingSessions(true);
       try {
         const res  = await fetch(`/api/group-sessions?businessId=${encodeURIComponent(business.id)}&serviceId=${encodeURIComponent(svc.id)}`);
-        const data = await res.json();
-        setGroupSessions(data.sessions ?? []);
-      } catch { setGroupSessions([]); }
+        if (!res.ok) {
+          console.error("group-sessions fetch failed with status:", res.status);
+          setGroupSessions([]);
+        } else {
+          const data = await res.json();
+          setGroupSessions(data.sessions ?? []);
+        }
+      } catch (e) {
+        console.error("group-sessions fetch error:", e);
+        setGroupSessions([]);
+      }
       finally { setLoadingSessions(false); }
     } else {
       setGroupSessions([]);
@@ -425,6 +439,19 @@ export default function BookPage({ params }: { params: { businessname: string } 
       <p className="text-gray-500">Loading...</p>
     </div>
   );
+  if (loadError) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+      <div className="text-6xl mb-4">&#9888;&#65039;</div>
+      <h1 className="text-2xl font-bold text-gray-800 mb-2">Something went wrong</h1>
+      <p className="text-gray-500 mb-6 text-center">Something went wrong loading this page. Please try again in a moment.</p>
+      <button
+        onClick={() => loadAll()}
+        className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition"
+      >
+        Retry
+      </button>
+    </div>
+  );
   if (notFound) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
       <div className="text-6xl mb-4">404</div>
@@ -467,7 +494,9 @@ export default function BookPage({ params }: { params: { businessname: string } 
             This business currently has no services available. Please check back later.
           </div>
         )}
-        {services.length > 0 && hours.length === 0 && !isGroupService && (
+        {/* Hours warning only gates the 1-on-1 calendar flow — group sessions
+            carry their own explicit date/time and must not be blocked. */}
+        {selectedService && !isGroupService && hours.length === 0 && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm">
             Business hours have not been configured yet. Please check back later.
           </div>
@@ -543,7 +572,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
               <p className="text-gray-400 text-sm">Loading sessions...</p>
             ) : groupSessions.length === 0 ? (
               <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm">
-                No upcoming sessions available for this service. Please check back later.
+                No upcoming sessions scheduled for this class yet. Please check back soon.
               </div>
             ) : (
               <div className="space-y-3">
@@ -702,10 +731,10 @@ export default function BookPage({ params }: { params: { businessname: string } 
               {customFields.map(cf => (
                 <div key={cf.id}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {cf.label}
+                    {cf.label}{" "}
                     {cf.is_required
-                      ? <span className="text-red-500 ml-0.5">*</span>
-                      : <span className="text-gray-400 font-normal ml-1">(optional)</span>}
+                      ? <span className="text-red-500">*</span>
+                      : <span className="text-gray-400 font-normal">(optional)</span>}
                   </label>
                   <input
                     type="text"

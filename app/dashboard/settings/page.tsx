@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { bookingUrl } from "@/lib/slug";
 import { showToast } from "@/components/Toast";
+import { QRCodeCard } from "@/components/QRCodeCard";
 
 interface Profile { email: string; business_name: string; phone_number?: string | null; created_at?: string; }
 
@@ -119,6 +120,13 @@ export default function SettingsPage() {
           </Link>
         </div>
       </div>
+
+      {/* QR Code */}
+      {profile && (
+        <div className="mb-6">
+          <QRCodeCard url={link} businessName={profile.business_name} />
+        </div>
+      )}
 
       {/* Subscription */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-6">

@@ -24,6 +24,14 @@ function fmtDate(d: string) {
   });
 }
 
+// created_at is a full timestamp — parse directly and guard invalid values
+function fmtSince(ts: string | null): string | null {
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-AE", { month: "short", year: "numeric" });
+}
+
 export default function CustomersPage() {
   const router = useRouter();
   const [rows, setRows]       = useState<CustomerRow[]>([]);
@@ -140,7 +148,9 @@ export default function CustomersPage() {
                   <tr key={c.id} className="hover:bg-gray-50 transition">
                     <td className="px-6 py-4">
                       <p className="font-medium text-gray-800">{c.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Since {fmtDate(c.created_at)}</p>
+                      {fmtSince(c.created_at) && (
+                        <p className="text-xs text-gray-400 mt-0.5">Since {fmtSince(c.created_at)}</p>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-gray-600">{c.phone ?? <span className="text-gray-300 italic">—</span>}</td>
                     <td className="px-6 py-4 text-gray-600">{c.email ?? <span className="text-gray-300 italic">—</span>}</td>

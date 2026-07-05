@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { bookingUrl } from "@/lib/slug";
 import { showToast } from "@/components/Toast";
+import { QRCodeCard } from "@/components/QRCodeCard";
 
 interface UserProfile {
   email: string;
@@ -111,8 +112,9 @@ export default function DashboardPage() {
         <p className="text-gray-500 text-sm mt-1">{getWelcomeTag(profile?.business_type)}</p>
       </div>
 
-      {/* Share Booking Link Card */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 mb-8 text-white">
+      {/* Share Booking Link Card + QR (side by side on desktop, stacked on mobile) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-6 mb-8 items-start">
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 text-white">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
@@ -148,6 +150,10 @@ export default function DashboardPage() {
             Email
           </a>
         </div>
+      </div>
+
+      {/* QR code for the same booking URL */}
+      {profile && <QRCodeCard url={link} businessName={profile.business_name} />}
       </div>
 
       {/* Stats */}

@@ -82,6 +82,46 @@ export default function NewBookingPage() {
 
     setSaving(true);
     try {
+      // Manual bookings create-or-link a customer profile, same as the
+      // public API. Blocked slots never do. A profile failure must not
+      // block saving the booking.
+      let customerId: string | null = null;
+      if (mode === "manual") {
+        try {
+          const phone = customerPhone.trim();
+          const { data: existing } = await supabase
+            .from("customers")
+            .select("id, name, email")
+            .eq("user_id", userId)
+            .eq("phone", phone)
+            .maybeSingle();
+
+          if (existing) {
+            customerId = existing.id;
+            const updates: Record<string, string> = {};
+            if (existing.name !== customerName.trim()) updates.name = customerName.trim();
+            if (customerEmail.trim() && existing.email !== customerEmail.trim()) updates.email = customerEmail.trim();
+            if (Object.keys(updates).length > 0) {
+              await supabase.from("customers").update(updates).eq("id", existing.id);
+            }
+          } else {
+            const { data: newCust } = await supabase
+              .from("customers")
+              .insert({
+                user_id: userId,
+                name:    customerName.trim(),
+                email:   customerEmail.trim() || null,
+                phone,
+              })
+              .select("id")
+              .single();
+            customerId = newCust?.id ?? null;
+          }
+        } catch (profileErr) {
+          console.error("manual booking: customer profile upsert failed (non-fatal):", profileErr);
+        }
+      }
+
       const payload =
         mode === "blocked"
           ? {
@@ -99,6 +139,7 @@ export default function NewBookingPage() {
           : {
               user_id: userId,
               service_id: serviceId,
+              customer_id: customerId,
               customer_name: customerName.trim(),
               customer_email: customerEmail.trim() || "noemail@internal",
               customer_phone: customerPhone.trim(),

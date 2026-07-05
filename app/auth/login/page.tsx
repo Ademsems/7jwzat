@@ -25,7 +25,17 @@ function LoginForm() {
       if (signInError) throw signInError;
       router.push("/dashboard");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+      const msg = err instanceof Error ? err.message : "";
+      // Network-level failures produce unhelpful messages like "Failed to fetch" —
+      // show a friendly message. Genuine auth errors pass through unchanged.
+      const isNetworkErr =
+        /failed to fetch|network|fetch failed|load failed|timeout/i.test(msg) ||
+        (err instanceof TypeError);
+      setError(
+        isNetworkErr
+          ? "Unable to reach the server. Please check your connection and try again."
+          : msg || "Login failed. Please try again."
+      );
     } finally {
       setLoading(false);
     }

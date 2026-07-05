@@ -16,8 +16,10 @@ interface RangeBooking {
   service_id: string | null;
   staff_id: string | null;
   customer_id: string | null;
-  services: unknown; // joined: { id, name, price } | null
+  services: { id: string; name: string; price: number } | null; // merged client-side
 }
+
+interface ServiceRow { id: string; name: string; price: number; }
 
 interface HistoryBooking {
   customer_id: string | null;
@@ -67,8 +69,9 @@ function fmtHour(h: number): string {
 
 function svcPrice(svc: unknown): number {
   if (!svc || typeof svc !== "object") return 0;
-  const p = (svc as { price?: unknown }).price;
-  return typeof p === "number" ? p : 0;
+  // numeric columns can arrive as strings from PostgREST
+  const p = Number((svc as { price?: unknown }).price);
+  return isNaN(p) ? 0 : p;
 }
 
 function svcName(svc: unknown): string {
@@ -348,14 +351,20 @@ export default function AnalyticsPage() {
     setLoading(true);
     const { start, end } = getDateRange(r);
 
-    const [rbRes, abRes, staffRes, custRes] = await Promise.all([
-      // Bookings in the date range, joined with service price/name
+    const [rbRes, svcRes, abRes, staffRes, custRes] = await Promise.all([
+      // Bookings in the date range (no embedded join — merged with services below)
       supabase
         .from("bookings")
-        .select("id, booking_date, booking_time, status, booking_type, service_id, staff_id, customer_id, services(id, name, price)")
+        .select("id, booking_date, booking_time, status, booking_type, service_id, staff_id, customer_id")
         .eq("user_id", uid)
         .gte("booking_date", start)
         .lte("booking_date", end),
+
+      // Services (for name + price lookup)
+      supabase
+        .from("services")
+        .select("id, name, price")
+        .eq("user_id", uid),
 
       // All-time bookings (lightweight — just customer_id + booking_date for new/returning calc)
       supabase
@@ -377,8 +386,21 @@ export default function AnalyticsPage() {
         .eq("user_id", uid),
     ]);
 
+    if (rbRes.error)    console.error("analytics: range bookings error:", rbRes.error.message);
+    if (svcRes.error)   console.error("analytics: services error:",       svcRes.error.message);
+    if (abRes.error)    console.error("analytics: all bookings error:",   abRes.error.message);
+    if (staffRes.error) console.error("analytics: staff error:",          staffRes.error.message);
+    if (custRes.error)  console.error("analytics: customers error:",      custRes.error.message);
+
+    // Merge service data into bookings client-side (avoids fragile embedded join)
+    const svcById: Record<string, ServiceRow> = {};
+    ((svcRes.data ?? []) as ServiceRow[]).forEach(s => { svcById[s.id] = s; });
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setRb((rbRes.data ?? []) as any as RangeBooking[]);
+    setRb(((rbRes.data ?? []) as any[]).map(b => ({
+      ...b,
+      services: b.service_id ? (svcById[b.service_id] ?? null) : null,
+    })) as RangeBooking[]);
     setAllBk((abRes.data ?? []) as HistoryBooking[]);
     setStaff(staffRes.data ?? []);
     setCustomers(custRes.data ?? []);
@@ -407,12 +429,6 @@ export default function AnalyticsPage() {
     .filter(b => b.status === "completed")
     .reduce((s, b) => s + svcPrice(b.services), 0);
 
-  // ── Stat card 3: new customers ───────────────────────────────────────────
-  const newCustN = customers.filter(c => {
-    const d = c.created_at.slice(0, 10);
-    return d >= start && d <= end;
-  }).length;
-
   // Build all-time booking history per customer (for new/returning logic)
   const histByCustomer: Record<string, string[]> = {};
   allBk.forEach(b => {
@@ -422,9 +438,13 @@ export default function AnalyticsPage() {
   });
   const rangeCustomerIds = new Set(real.filter(b => b.customer_id).map(b => b.customer_id!));
 
-  let returningN = 0;
+  // Stat card 3: new customers = customers whose FIRST booking falls in the
+  // selected range (recalculates when the range changes). Returning = had a
+  // booking before the range started.
+  let newCustN = 0, returningN = 0;
   rangeCustomerIds.forEach(cid => {
     if ((histByCustomer[cid] ?? []).some(d => d < start)) returningN++;
+    else newCustN++;
   });
 
   // ── Stat card 4: cancellation rate ──────────────────────────────────────
