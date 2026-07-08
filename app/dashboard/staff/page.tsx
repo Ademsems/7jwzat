@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
 
 interface Service   { id: string; name: string; }
 interface StaffMember {
@@ -24,6 +25,7 @@ function getErr(e: unknown) {
 
 export default function StaffPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [userId, setUserId]   = useState<string | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [staff, setStaff]     = useState<StaffMember[]>([]);
@@ -110,7 +112,7 @@ export default function StaffPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) { setError("Name is required."); return; }
+    if (!form.name.trim()) { setError(t("staff.nameRequired")); return; }
     setSaving(true);
     setError("");
 
@@ -170,19 +172,19 @@ export default function StaffPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">Loading...</p>
+      <p className="text-gray-500">{t("d.loading")}</p>
     </div>
   );
 
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-4xl">
-      <h2 className="text-2xl font-bold text-gray-800 mb-1">Your Team</h2>
-      <p className="text-gray-500 text-sm mb-8">Manage staff and the services they can perform.</p>
+      <h2 className="text-2xl font-bold text-gray-800 mb-1">{t("staff.title")}</h2>
+      <p className="text-gray-500 text-sm mb-8">{t("staff.subtitle")}</p>
 
       {/* ── Add / Edit form ───────────────────────────────────── */}
       <div ref={formRef} className="bg-white rounded-xl shadow-sm p-6 mb-8">
         <h3 className="font-semibold text-gray-700 mb-4">
-          {editId ? "Edit Team Member" : "Add Team Member"}
+          {editId ? t("staff.editMember") : t("staff.addMember")}
         </h3>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -192,23 +194,23 @@ export default function StaffPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("staff.name")} *</label>
               <input
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Sara Ahmed"
+                placeholder={t("staff.namePlaceholder")}
                 required
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Role <span className="text-gray-400 font-normal">(optional)</span>
+                {t("staff.role")} <span className="text-gray-400 font-normal">{t("d.optional")}</span>
               </label>
               <input
                 value={form.role}
                 onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-                placeholder="e.g. Senior Stylist"
+                placeholder={t("staff.rolePlaceholder")}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -216,12 +218,12 @@ export default function StaffPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Bio <span className="text-gray-400 font-normal">(optional — shown to customers on the booking page)</span>
+              {t("staff.bio")} <span className="text-gray-400 font-normal">{t("staff.bioHint")}</span>
             </label>
             <textarea
               value={form.bio}
               onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
-              placeholder="Short bio shown to customers when choosing a team member..."
+              placeholder={t("staff.bioPlaceholder")}
               rows={2}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
             />
@@ -230,7 +232,7 @@ export default function StaffPage() {
           {services.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Services this person can perform
+                {t("staff.canPerform")}
               </label>
               <div className="flex flex-wrap gap-2">
                 {services.map(svc => {
@@ -246,7 +248,7 @@ export default function StaffPage() {
                           : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400 hover:text-emerald-700"
                         }`}
                     >
-                      {on && <span className="mr-1">&#10003;</span>}{svc.name}
+                      {on && <span className="me-1">&#10003;</span>}{svc.name}
                     </button>
                   );
                 })}
@@ -260,7 +262,7 @@ export default function StaffPage() {
               disabled={saving}
               className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 transition"
             >
-              {saving ? "Saving..." : editId ? "Update Team Member" : "Add Team Member"}
+              {saving ? t("d.saving") : editId ? t("staff.updateMember") : t("staff.addMember")}
             </button>
             {editId && (
               <button
@@ -268,7 +270,7 @@ export default function StaffPage() {
                 onClick={cancelEdit}
                 className="px-6 py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-600 hover:bg-gray-50 transition"
               >
-                Cancel
+                {t("d.cancel")}
               </button>
             )}
           </div>
@@ -279,7 +281,7 @@ export default function StaffPage() {
       {staff.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm p-12 text-center">
           <p className="text-4xl mb-3">&#128101;</p>
-          <p className="text-gray-500 text-sm">No team members yet. Add your first one above.</p>
+          <p className="text-gray-500 text-sm">{t("staff.empty")}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -300,7 +302,7 @@ export default function StaffPage() {
                     ${member.is_active
                       ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                       : "bg-gray-100 text-gray-500 border-gray-200"}`}>
-                    {member.is_active ? "Active" : "Inactive"}
+                    {member.is_active ? t("staff.active") : t("staff.inactive")}
                   </span>
                 </div>
 
@@ -315,7 +317,7 @@ export default function StaffPage() {
                           {s.name}
                         </span>
                       ))
-                    : <span className="text-xs text-gray-400 italic">No services assigned</span>
+                    : <span className="text-xs text-gray-400 italic">{t("staff.noServices")}</span>
                   }
                 </div>
               </div>
@@ -326,19 +328,19 @@ export default function StaffPage() {
                   onClick={() => handleToggleActive(member)}
                   className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition font-medium"
                 >
-                  {member.is_active ? "Deactivate" : "Activate"}
+                  {member.is_active ? t("staff.deactivate") : t("staff.activate")}
                 </button>
                 <button
                   onClick={() => startEdit(member)}
                   className="text-xs px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition font-medium"
                 >
-                  Edit
+                  {t("d.edit")}
                 </button>
                 <button
                   onClick={() => handleDelete(member)}
                   className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition font-medium"
                 >
-                  Delete
+                  {t("d.delete")}
                 </button>
               </div>
             </div>

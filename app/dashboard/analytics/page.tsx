@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type RangeKey = "this-month" | "last-month" | "last-3-months" | "last-6-months";
@@ -289,10 +290,10 @@ function HourBars({ items }: { items: { label: string; count: number }[] }) {
 }
 
 // ── New vs Returning ──────────────────────────────────────────────────────────
-function NewReturning({ newCount, retCount }: { newCount: number; retCount: number }) {
+function NewReturning({ newCount, retCount, newLabel, retLabel, ofCustomers, emptyMsg }: { newCount: number; retCount: number; newLabel: string; retLabel: string; ofCustomers: string; emptyMsg: string }) {
   const total = newCount + retCount;
   if (total === 0) {
-    return <p className="text-gray-400 text-sm text-center py-6">No customer data for this period.</p>;
+    return <p className="text-gray-400 text-sm text-center py-6">{emptyMsg}</p>;
   }
   const newPct = Math.round((newCount / total) * 100);
   const retPct = 100 - newPct;
@@ -301,13 +302,13 @@ function NewReturning({ newCount, retCount }: { newCount: number; retCount: numb
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-indigo-50 rounded-xl p-5 text-center">
           <p className="text-4xl font-bold text-indigo-700">{newCount}</p>
-          <p className="text-sm text-indigo-500 mt-1 font-medium">New</p>
-          <p className="text-xs text-gray-400 mt-0.5">{newPct}% of customers</p>
+          <p className="text-sm text-indigo-500 mt-1 font-medium">{newLabel}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{newPct}% {ofCustomers}</p>
         </div>
         <div className="bg-emerald-50 rounded-xl p-5 text-center">
           <p className="text-4xl font-bold text-emerald-700">{retCount}</p>
-          <p className="text-sm text-emerald-600 mt-1 font-medium">Returning</p>
-          <p className="text-xs text-gray-400 mt-0.5">{retPct}% of customers</p>
+          <p className="text-sm text-emerald-600 mt-1 font-medium">{retLabel}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{retPct}% {ofCustomers}</p>
         </div>
       </div>
       {/* Split bar */}
@@ -324,8 +325,16 @@ function NewReturning({ newCount, retCount }: { newCount: number; retCount: numb
 }
 
 // ── Main Analytics Page ───────────────────────────────────────────────────────
+const RANGE_KEYS: Record<RangeKey, string> = {
+  "this-month": "an.thisMonth",
+  "last-month": "an.lastMonth",
+  "last-3-months": "an.last3",
+  "last-6-months": "an.last6",
+};
+
 export default function AnalyticsPage() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   const [userId,    setUserId]    = useState<string | null>(null);
   const [currency,  setCurrency]  = useState<string>("JOD");
@@ -587,8 +596,8 @@ export default function AnalyticsPage() {
       {/* ── Header + date range toggle ── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Analytics</h2>
-          <p className="text-gray-500 text-sm mt-1">Understanding your business performance</p>
+          <h2 className="text-2xl font-bold text-gray-800">{t("an.title")}</h2>
+          <p className="text-gray-500 text-sm mt-1">{t("an.subtitle")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {RANGES.map(r => (
@@ -601,7 +610,7 @@ export default function AnalyticsPage() {
                   : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400 hover:text-emerald-700"
               }`}
             >
-              {r.label}
+              {t(RANGE_KEYS[r.key])}
             </button>
           ))}
         </div>
@@ -610,68 +619,68 @@ export default function AnalyticsPage() {
       {/* ── Section 2: Stat cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
-          title="Total Bookings"
+          title={t("an.totalBookings")}
           value={String(totalN)}
-          sub={`${confirmedN} confirmed, ${pendingN} pending, ${cancelledN} cancelled`}
+          sub={`${confirmedN} ${t("an.confirmed")}، ${pendingN} ${t("an.pending")}، ${cancelledN} ${t("an.cancelled")}`}
         />
         <StatCard
-          title="Completed Revenue"
+          title={t("an.completedRevenue")}
           value={fmtMoney(completedRev)}
-          sub={`From ${completedN} completed appointment${completedN !== 1 ? "s" : ""}`}
+          sub={`${t("an.fromCompleted")} ${completedN} ${t("an.completedAppointments")}`}
         />
         <StatCard
-          title="New Customers"
+          title={t("an.newCustomers")}
           value={String(newCustN)}
-          sub={`${returningN} returning`}
+          sub={`${returningN} ${t("an.returning")}`}
         />
         <StatCard
-          title="Cancellation Rate"
+          title={t("an.cancellationRate")}
           value={`${cancelRate}%`}
-          sub={`${cancelledN} cancellation${cancelledN !== 1 ? "s" : ""} out of ${totalN} total`}
+          sub={`${cancelledN} ${t("an.cancellationsOutOf")} ${totalN}`}
         />
       </div>
 
       <div className="space-y-6">
 
-        {/* ── Section 3: Revenue over time ── */}
-        <Section title="Revenue Over Time">
-          <BarChart bars={revBars} />
+        {/* ── Section 3: Revenue over time (chart body stays LTR) ── */}
+        <Section title={t("an.revenueOverTime")}>
+          <div dir="ltr"><BarChart bars={revBars} /></div>
         </Section>
 
         {/* ── Section 4: Status breakdown ── */}
-        <Section title="Booking Status Breakdown">
+        <Section title={t("an.statusBreakdown")}>
           <StatusBar items={statusItems} />
         </Section>
 
         {/* ── Section 5: Top services ── */}
-        <Section title="Top Services">
-          <TopList items={topServices} emptyMsg="No bookings yet in this period." />
+        <Section title={t("an.topServices")}>
+          <TopList items={topServices} emptyMsg={t("an.noBookingsPeriod")} />
         </Section>
 
         {/* ── Section 6: Team performance (only if staff exist) ── */}
         {hasStaff && (
-          <Section title="Team Performance">
-            <TopList items={topStaff} emptyMsg="No assigned bookings in this period." />
+          <Section title={t("an.teamPerformance")}>
+            <TopList items={topStaff} emptyMsg={t("an.noAssigned")} />
           </Section>
         )}
 
         {/* ── Section 7: Busiest days and times ── */}
-        <Section title="When You're Busiest">
+        <Section title={t("an.whenBusiest")}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* 7A: Busiest days of week */}
+            {/* 7A: Busiest days of week (chart LTR) */}
             <div>
-              <p className="text-sm font-semibold text-gray-600 mb-4">Busiest Days of the Week</p>
+              <p className="text-sm font-semibold text-gray-600 mb-4">{t("an.busiestDays")}</p>
               {real.length === 0
-                ? <p className="text-gray-400 text-sm">No booking data yet.</p>
-                : <DowChart data={dowData} />
+                ? <p className="text-gray-400 text-sm">{t("an.noData")}</p>
+                : <div dir="ltr"><DowChart data={dowData} /></div>
               }
             </div>
-            {/* 7B: Busiest time slots */}
+            {/* 7B: Busiest time slots (chart LTR) */}
             <div>
-              <p className="text-sm font-semibold text-gray-600 mb-4">Busiest Time Slots</p>
+              <p className="text-sm font-semibold text-gray-600 mb-4">{t("an.busiestTimes")}</p>
               {topHours.length === 0
-                ? <p className="text-gray-400 text-sm">No booking data yet.</p>
-                : <HourBars items={topHours} />
+                ? <p className="text-gray-400 text-sm">{t("an.noData")}</p>
+                : <div dir="ltr"><HourBars items={topHours} /></div>
               }
             </div>
           </div>
@@ -679,8 +688,9 @@ export default function AnalyticsPage() {
 
         {/* ── Section 8: New vs Returning (only if customer data exists) ── */}
         {hasCustomerData && (
-          <Section title="New vs Returning Customers">
-            <NewReturning newCount={newCountSec8} retCount={retCountSec8} />
+          <Section title={t("an.newVsReturning")}>
+            <NewReturning newCount={newCountSec8} retCount={retCountSec8}
+              newLabel={t("an.new")} retLabel={t("an.returningLabel")} ofCustomers={t("an.ofCustomers")} emptyMsg={t("an.noCustomerData")} />
           </Section>
         )}
 

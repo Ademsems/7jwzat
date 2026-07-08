@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { formatDateLocale, formatTimeLocale } from "@/lib/i18n/format";
 
 interface GroupService { id: string; name: string; }
 interface GroupSession {
@@ -33,23 +35,13 @@ function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-function fmtDate(s: string) {
-  return new Date(s + "T00:00:00").toLocaleDateString("en-AE", {
-    weekday: "short", month: "short", day: "numeric", year: "numeric",
-  });
-}
-function fmtTime(t: string) {
-  const [h, m] = t.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
-}
 function getErr(e: unknown) {
   return e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "Something went wrong.";
 }
 
 export default function SessionsPage() {
   const router = useRouter();
+  const { t, locale } = useLanguage();
   const [userId, setUserId] = useState<string | null>(null);
   const [groupServices, setGroupServices] = useState<GroupService[]>([]);
   const [sessions, setSessions] = useState<GroupSession[]>([]);
@@ -130,7 +122,7 @@ export default function SessionsPage() {
   async function handleAddSession(e: React.FormEvent) {
     e.preventDefault();
     if (!userId || !fServiceId) return;
-    if (fCapacity < 1 || fCapacity > 500) { showToast("Capacity must be between 1 and 500.", "error"); return; }
+    if (fCapacity < 1 || fCapacity > 500) { showToast(t("sess.capacityRange"), "error"); return; }
 
     setSaving(true);
     const { error } = await supabase.from("group_sessions").insert({
@@ -143,7 +135,7 @@ export default function SessionsPage() {
     });
     if (error) { showToast(getErr(error), "error"); }
     else {
-      showToast("Session added successfully.");
+      showToast(t("sess.added"));
       setFNotes("");
       setFCapacity(10);
       setShowForm(false);
@@ -153,17 +145,17 @@ export default function SessionsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Delete this session? Any bookings for it will be unlinked.")) return;
+    if (!window.confirm(t("sess.deleteConfirm"))) return;
     setDeletingId(id);
     const { error } = await supabase.from("group_sessions").delete().eq("id", id);
     if (error) showToast(getErr(error), "error");
-    else { showToast("Session deleted."); setSessions(prev => prev.filter(s => s.id !== id)); }
+    else { showToast(t("sess.deleted")); setSessions(prev => prev.filter(s => s.id !== id)); }
     setDeletingId(null);
   }
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">Loading...</p>
+      <p className="text-gray-500">{t("d.loading")}</p>
     </div>
   );
 
@@ -171,31 +163,31 @@ export default function SessionsPage() {
     <main className="flex-1 p-4 sm:p-8 max-w-3xl">
       <div className="flex items-start justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Group Sessions</h2>
-          <p className="text-gray-500 text-sm mt-1">Schedule sessions that multiple customers can book.</p>
+          <h2 className="text-2xl font-bold text-gray-800">{t("sess.title")}</h2>
+          <p className="text-gray-500 text-sm mt-1">{t("sess.subtitle")}</p>
         </div>
         <button
           onClick={() => setShowForm(v => !v)}
           className="shrink-0 bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition"
         >
-          {showForm ? "Cancel" : "+ Add Session"}
+          {showForm ? t("d.cancel") : t("sess.add")}
         </button>
       </div>
 
       {/* No group services notice */}
       {groupServices.length === 0 && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm mb-6">
-          You have no group services yet. Go to <strong>Services</strong> and toggle a service to &ldquo;Group session&rdquo; to get started.
+          {t("sess.noGroupNotice")}
         </div>
       )}
 
       {/* Add session form */}
       {showForm && groupServices.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <h3 className="font-semibold text-gray-700 mb-5">New Group Session</h3>
+          <h3 className="font-semibold text-gray-700 mb-5">{t("sess.newSession")}</h3>
           <form onSubmit={handleAddSession} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("sess.service")}</label>
               <select
                 value={fServiceId}
                 onChange={e => setFServiceId(e.target.value)}
@@ -207,7 +199,7 @@ export default function SessionsPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("sess.date")}</label>
                 <input
                   type="date"
                   value={fDate}
@@ -217,7 +209,7 @@ export default function SessionsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("sess.time")}</label>
                 <select
                   value={fTime}
                   onChange={e => setFTime(e.target.value)}
@@ -229,7 +221,7 @@ export default function SessionsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Capacity (max spots)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("sess.capacityLabel")}</label>
               <input
                 type="number"
                 value={fCapacity}
@@ -242,13 +234,13 @@ export default function SessionsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notes <span className="text-gray-400 font-normal">(optional — shown to customers)</span>
+                {t("sess.notes")} <span className="text-gray-400 font-normal">{t("sess.notesHint")}</span>
               </label>
               <input
                 type="text"
                 value={fNotes}
                 onChange={e => setFNotes(e.target.value)}
-                placeholder="e.g. Bring your mat, Beginners welcome"
+                placeholder={t("sess.notesPlaceholder")}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -258,7 +250,7 @@ export default function SessionsPage() {
               disabled={saving}
               className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 transition"
             >
-              {saving ? "Saving..." : "Add Session"}
+              {saving ? t("d.saving") : t("sess.add")}
             </button>
           </form>
         </div>
@@ -267,22 +259,22 @@ export default function SessionsPage() {
       {/* Sessions list */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-          <h3 className="font-semibold text-gray-700">Upcoming Sessions</h3>
+          <h3 className="font-semibold text-gray-700">{t("sess.upcoming")}</h3>
         </div>
         {sessions.length === 0 ? (
           <div className="p-10 text-center">
-            <p className="text-gray-400 text-sm">No upcoming sessions. Add one above.</p>
+            <p className="text-gray-400 text-sm">{t("sess.emptyList")}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Service</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Date &amp; Time</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Booked</th>
-                  <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Remaining</th>
-                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Actions</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("sess.service")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("sess.dateTime")}</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("sess.bookedCol")}</th>
+                  <th className="text-center text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("sess.remaining")}</th>
+                  <th className="text-end text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("d.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -296,30 +288,30 @@ export default function SessionsPage() {
                         {s.notes && <p className="text-xs text-gray-400 mt-0.5">{s.notes}</p>}
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-gray-700">{fmtDate(s.session_date)}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{fmtTime(s.session_time)}</p>
+                        <p className="text-gray-700">{formatDateLocale(s.session_date, locale)}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{formatTimeLocale(s.session_time, locale)}</p>
                       </td>
                       <td className="px-6 py-4 text-center text-gray-700">{s.booked_count} / {s.capacity}</td>
                       <td className="px-6 py-4 text-center">
                         {isFull ? (
-                          <span className="text-xs font-semibold text-red-600 bg-red-50 px-2.5 py-1 rounded-full border border-red-100">Full</span>
+                          <span className="text-xs font-semibold text-red-600 bg-red-50 px-2.5 py-1 rounded-full border border-red-100">{t("sess.full")}</span>
                         ) : (
                           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
                             remaining <= 3
                               ? "text-amber-700 bg-amber-50 border-amber-100"
                               : "text-emerald-700 bg-emerald-50 border-emerald-100"
                           }`}>
-                            {remaining} left
+                            {remaining} {t("sess.left")}
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-end">
                         <button
                           onClick={() => handleDelete(s.id)}
                           disabled={deletingId === s.id}
                           className="text-xs font-medium text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-60 transition"
                         >
-                          {deletingId === s.id ? "..." : "Delete"}
+                          {deletingId === s.id ? "..." : t("d.delete")}
                         </button>
                       </td>
                     </tr>

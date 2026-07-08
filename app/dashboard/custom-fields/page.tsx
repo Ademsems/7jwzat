@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
 
 /* ─── Types ──────────────────────────────────────────────── */
 interface Service { id: string; name: string; }
@@ -28,6 +29,7 @@ const EMPTY_FORM = {
 /* ─── Page ───────────────────────────────────────────────── */
 export default function CustomFieldsPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const formRef = useRef<HTMLDivElement>(null);
 
   const [services, setServices]       = useState<Service[]>([]);
@@ -103,9 +105,9 @@ export default function CustomFieldsPage() {
     e.preventDefault();
     setFormError("");
 
-    if (!form.label.trim()) { setFormError("Label is required."); return; }
+    if (!form.label.trim()) { setFormError(t("cf.errLabel")); return; }
     if (!form.apply_to_all && form.service_ids.length === 0) {
-      setFormError("Select at least one service, or switch to Apply to All Services."); return;
+      setFormError(t("cf.errSelect")); return;
     }
 
     setSaving(true);
@@ -138,7 +140,7 @@ export default function CustomFieldsPage() {
             service_ids: form.apply_to_all ? [] : form.service_ids }
         : f
       ));
-      showToast("Custom field updated.");
+      showToast(t("cf.updated"));
 
     } else {
       // ── Insert new field ─────────────────────────────────────
@@ -166,7 +168,7 @@ export default function CustomFieldsPage() {
         ...prev,
         { ...newField, service_ids: form.apply_to_all ? [] : form.service_ids },
       ]);
-      showToast("Custom field created.");
+      showToast(t("cf.created"));
     }
 
     resetForm();
@@ -181,31 +183,31 @@ export default function CustomFieldsPage() {
     else {
       setFields(prev => prev.filter(f => f.id !== field.id));
       if (editingId === field.id) resetForm();
-      showToast("Field deleted.");
+      showToast(t("cf.deleted"));
     }
     setDeletingId(null);
   }
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">Loading...</p>
+      <p className="text-gray-500">{t("d.loading")}</p>
     </div>
   );
 
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-3xl">
-      <h2 className="text-2xl font-bold text-gray-800 mb-1">Custom Fields</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-1">{t("cf.title")}</h2>
       <p className="text-gray-500 text-sm mb-8">
-        Add extra questions to your booking form — shown to customers before they confirm.
+        {t("cf.subtitle")}
       </p>
 
       {/* ── Form ──────────────────────────────────────────────────── */}
       <div ref={formRef} className="bg-white rounded-xl shadow-sm p-6 mb-8">
         <h3 className="font-semibold text-gray-700 mb-1">
-          {editingId ? "Edit Field" : "Add a New Field"}
+          {editingId ? t("cf.editField") : t("cf.addField")}
         </h3>
         <p className="text-xs text-gray-400 mb-5">
-          {editingId ? "Update the field details below." : "This field will appear in the booking form."}
+          {editingId ? t("cf.editHint") : t("cf.addHint")}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -218,13 +220,13 @@ export default function CustomFieldsPage() {
           {/* Label */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Label <span className="text-red-500">*</span>
+              {t("cf.label")} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={form.label}
               onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
-              placeholder='e.g. "Any allergies?" or "Your preferred color"'
+              placeholder={t("cf.labelPlaceholder")}
               maxLength={120}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
@@ -233,13 +235,13 @@ export default function CustomFieldsPage() {
           {/* Placeholder */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Placeholder <span className="text-gray-400 font-normal">(optional)</span>
+              {t("cf.placeholder")} <span className="text-gray-400 font-normal">{t("d.optional")}</span>
             </label>
             <input
               type="text"
               value={form.placeholder}
               onChange={e => setForm(f => ({ ...f, placeholder: e.target.value }))}
-              placeholder='e.g. "e.g. Nuts, Shellac" or "Leave blank if none"'
+              placeholder={t("cf.placeholderPlaceholder")}
               maxLength={160}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
@@ -257,8 +259,7 @@ export default function CustomFieldsPage() {
                 ${form.is_required ? "translate-x-6" : "translate-x-1"}`} />
             </button>
             <span className="text-sm text-gray-700">
-              {form.is_required ? "Required" : "Optional"} — customers{" "}
-              {form.is_required ? "must" : "don't have to"} fill this in
+              {form.is_required ? t("cf.required") : t("cf.optional")} — {form.is_required ? t("cf.requiredNote") : t("cf.optionalNote")}
             </span>
           </div>
 
@@ -274,16 +275,16 @@ export default function CustomFieldsPage() {
                 ${form.apply_to_all ? "translate-x-6" : "translate-x-1"}`} />
             </button>
             <span className="text-sm text-gray-700">
-              Apply to <strong>{form.apply_to_all ? "all services" : "specific services"}</strong>
+              {t("cf.applyTo")} <strong>{form.apply_to_all ? t("cf.allServices") : t("cf.specificServices")}</strong>
             </span>
           </div>
 
           {/* Service checklist (only when apply_to_all = false) */}
           {!form.apply_to_all && (
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Select services:</p>
+              <p className="text-sm font-medium text-gray-700 mb-2">{t("cf.selectServices")}</p>
               {services.length === 0 ? (
-                <p className="text-sm text-gray-400 italic">No services found. Add services first.</p>
+                <p className="text-sm text-gray-400 italic">{t("cf.noServicesFirst")}</p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {services.map(svc => (
@@ -315,7 +316,7 @@ export default function CustomFieldsPage() {
               disabled={saving}
               className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 transition"
             >
-              {saving ? "Saving..." : editingId ? "Save Changes" : "Add Field"}
+              {saving ? t("d.saving") : editingId ? t("cf.saveChanges") : t("cf.addBtn")}
             </button>
             {editingId && (
               <button
@@ -323,7 +324,7 @@ export default function CustomFieldsPage() {
                 onClick={resetForm}
                 className="px-6 py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-600 hover:bg-gray-50 transition"
               >
-                Cancel
+                {t("d.cancel")}
               </button>
             )}
           </div>
@@ -333,9 +334,9 @@ export default function CustomFieldsPage() {
       {/* ── Field list ──────────────────────────────────────────── */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-700">Your Custom Fields</h3>
+          <h3 className="font-semibold text-gray-700">{t("cf.yours")}</h3>
           <p className="text-xs text-gray-400 mt-0.5">
-            {fields.length} field{fields.length !== 1 ? "s" : ""}
+            {fields.length} {t("cf.fieldsCount")}
           </p>
         </div>
 
@@ -343,7 +344,7 @@ export default function CustomFieldsPage() {
           <div className="p-10 text-center">
             <p className="text-3xl mb-3">📝</p>
             <p className="text-gray-500 text-sm max-w-xs mx-auto">
-              No custom fields yet. Use the form above to add your first field.
+              {t("cf.empty")}
             </p>
           </div>
         ) : (
@@ -366,21 +367,21 @@ export default function CustomFieldsPage() {
                           ? "bg-red-100 text-red-700"
                           : "bg-gray-100 text-gray-500"
                       }`}>
-                        {field.is_required ? "Required" : "Optional"}
+                        {field.is_required ? t("cf.required") : t("cf.optional")}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         field.apply_to_all
                           ? "bg-indigo-100 text-indigo-700"
                           : "bg-amber-100 text-amber-700"
                       }`}>
-                        {field.apply_to_all ? "All services" : "Specific"}
+                        {field.apply_to_all ? t("cf.badgeAll") : t("cf.badgeSpecific")}
                       </span>
                     </div>
                     {field.placeholder && (
-                      <p className="text-xs text-gray-400 italic">Placeholder: {field.placeholder}</p>
+                      <p className="text-xs text-gray-400 italic">{t("cf.placeholderLabel")} {field.placeholder}</p>
                     )}
                     {!field.apply_to_all && serviceNames && (
-                      <p className="text-xs text-gray-400 mt-0.5">Services: {serviceNames}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{t("cf.servicesLabel")} {serviceNames}</p>
                     )}
                   </div>
 
@@ -389,14 +390,14 @@ export default function CustomFieldsPage() {
                       onClick={() => startEdit(field)}
                       className="text-xs font-semibold text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition"
                     >
-                      Edit
+                      {t("d.edit")}
                     </button>
                     <button
                       onClick={() => handleDelete(field)}
                       disabled={deletingId === field.id}
                       className="text-xs font-medium text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-60 transition"
                     >
-                      {deletingId === field.id ? "..." : "Delete"}
+                      {deletingId === field.id ? "..." : t("d.delete")}
                     </button>
                   </div>
                 </li>
