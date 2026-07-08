@@ -20,13 +20,13 @@ const arabic = IBM_Plex_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
-  title: "7jwzat - Online Booking for Salons, Spas & Clinics",
+  title: "7jwzat حجوزات — Online Booking for Salons, Spas & Clinics in Jordan",
   description:
-    "Free online booking system for small businesses in UAE, Saudi Arabia, and Jordan. No setup fees, no payment processing. Get your first booking today.",
+    "Free online booking for salons, spas, and clinics — now launching in Jordan. Free during our launch year: unlimited bookings, no setup fees, no payment processing.",
   openGraph: {
-    title: "7jwzat - Online Booking for Salons, Spas & Clinics",
+    title: "7jwzat حجوزات — Online Booking, now in Jordan",
     description:
-      "Simple booking system for salons, spas, and clinics in the Middle East. Share a link, customers book online.",
+      "Arabic-first booking system for salons, spas, and clinics. Free during our launch year. Share a link, customers book online.",
     type: "website",
   },
 };
