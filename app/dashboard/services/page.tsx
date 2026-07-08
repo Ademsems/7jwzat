@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 import { formatPrice, DEFAULT_CURRENCY } from "@/lib/currency";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
 
 interface Service { id: string; name: string; duration: number; price: number; is_group_service: boolean; }
 const EMPTY = { name: "", duration: "", price: "", isGroup: false };
@@ -15,6 +16,7 @@ function getErr(e: unknown) {
 
 export default function ServicesPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [userId, setUserId] = useState<string | null>(null);
   const [currency, setCurrency] = useState<string>(DEFAULT_CURRENCY);
   const [services, setServices] = useState<Service[]>([]);
@@ -100,11 +102,11 @@ export default function ServicesPage() {
         .update({ name: payload.name, duration: payload.duration, price: payload.price, is_group_service: payload.is_group_service })
         .eq("id", editingId);
       if (error) showToast(getErr(error), "error");
-      else { showToast("Service updated successfully."); setForm(EMPTY); setEditingId(null); await fetchServices(); }
+      else { showToast(t("services.updated")); setForm(EMPTY); setEditingId(null); await fetchServices(); }
     } else {
       const { error } = await supabase.from("services").insert(payload);
       if (error) showToast(getErr(error), "error");
-      else { showToast("Service added successfully."); setForm(EMPTY); await fetchServices(); }
+      else { showToast(t("services.added")); setForm(EMPTY); await fetchServices(); }
     }
     setSaving(false);
   }
@@ -127,18 +129,18 @@ export default function ServicesPage() {
     setDeletingId(null);
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">{t("d.loading")}</p></div>;
 
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-3xl">
-      <h2 className="text-2xl font-bold text-gray-800 mb-8">Services</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-8">{t("services.title")}</h2>
 
       {/* Form */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-        <h3 className="font-semibold text-gray-700 mb-5">{editingId ? "Edit Service" : "Add New Service"}</h3>
+        <h3 className="font-semibold text-gray-700 mb-5">{editingId ? t("services.edit") : t("services.addNew")}</h3>
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("services.name")}</label>
             <input
               type="text"
               value={form.name}
@@ -152,7 +154,7 @@ export default function ServicesPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("services.duration")}</label>
               <input
                 type="number"
                 value={form.duration}
@@ -166,7 +168,7 @@ export default function ServicesPage() {
               {fieldErrors.duration && <p className="text-red-600 text-xs mt-1">{fieldErrors.duration}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Price ({currency})</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("services.price")} ({currency})</label>
               <input
                 type="number"
                 value={form.price}
@@ -182,26 +184,26 @@ export default function ServicesPage() {
 
           {/* Session type toggle */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Session Type</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t("services.sessionType")}</label>
             <div className="flex rounded-xl border border-gray-200 overflow-hidden w-fit text-sm">
               <button
                 type="button"
                 onClick={() => setForm(f => ({ ...f, isGroup: false }))}
                 className={`px-5 py-2 font-medium transition ${!form.isGroup ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
               >
-                1-on-1
+                {t("services.oneOnOne")}
               </button>
               <button
                 type="button"
                 onClick={() => setForm(f => ({ ...f, isGroup: true }))}
                 className={`px-5 py-2 font-medium transition ${form.isGroup ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
               >
-                Group session
+                {t("services.group")}
               </button>
             </div>
             {form.isGroup && (
               <p className="text-xs text-emerald-700 mt-2 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-                &#128101; This service uses group sessions. Manage sessions in the <strong>Sessions</strong> tab.
+                &#128101; {t("services.groupNote")}
               </p>
             )}
           </div>
@@ -212,7 +214,7 @@ export default function ServicesPage() {
               disabled={saving || !isFormValid}
               className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              {saving ? "Saving..." : editingId ? "Update Service" : "Add Service"}
+              {saving ? t("d.saving") : editingId ? t("services.update") : t("services.add")}
             </button>
             {editingId && (
               <button
@@ -220,7 +222,7 @@ export default function ServicesPage() {
                 onClick={cancelEdit}
                 className="border border-gray-300 text-gray-600 px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-50 transition"
               >
-                Cancel
+                {t("d.cancel")}
               </button>
             )}
           </div>
@@ -229,51 +231,51 @@ export default function ServicesPage() {
 
       {/* List */}
       <div className="bg-white rounded-xl shadow-sm p-6">
-        <h3 className="font-semibold text-gray-700 mb-5">Your Services</h3>
+        <h3 className="font-semibold text-gray-700 mb-5">{t("services.yours")}</h3>
         {services.length === 0 ? (
-          <p className="text-sm text-gray-400">No services yet. Add your first service above!</p>
+          <p className="text-sm text-gray-400">{t("services.empty")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="text-left text-gray-500 font-medium pb-3 pr-4">Service</th>
-                  <th className="text-left text-gray-500 font-medium pb-3 pr-4">Duration</th>
-                  <th className="text-left text-gray-500 font-medium pb-3 pr-4">Price</th>
-                  <th className="text-left text-gray-500 font-medium pb-3 pr-4">Type</th>
-                  <th className="text-right text-gray-500 font-medium pb-3">Actions</th>
+                  <th className="text-start text-gray-500 font-medium pb-3 pr-4">{t("services.colService")}</th>
+                  <th className="text-start text-gray-500 font-medium pb-3 pr-4">{t("services.colDuration")}</th>
+                  <th className="text-start text-gray-500 font-medium pb-3 pr-4">{t("services.colPrice")}</th>
+                  <th className="text-start text-gray-500 font-medium pb-3 pr-4">{t("services.colType")}</th>
+                  <th className="text-end text-gray-500 font-medium pb-3">{t("d.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {services.map(svc => (
                   <tr key={svc.id} className="hover:bg-gray-50 transition">
                     <td className="py-3 pr-4 font-medium text-gray-800">{svc.name}</td>
-                    <td className="py-3 pr-4 text-gray-600">{svc.duration} min</td>
+                    <td className="py-3 pr-4 text-gray-600">{svc.duration} {t("book.minutesShort")}</td>
                     <td className="py-3 pr-4 text-gray-600">{formatPrice(svc.price, currency)}</td>
                     <td className="py-3 pr-4">
                       {svc.is_group_service ? (
                         <span className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full font-medium">
-                          &#128101; Group
+                          &#128101; {t("bk.group")}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-medium">
-                          1-on-1
+                          {t("services.oneOnOne")}
                         </span>
                       )}
                     </td>
-                    <td className="py-3 text-right space-x-2">
+                    <td className="py-3 text-end space-x-2">
                       <button
                         onClick={() => startEdit(svc)}
                         className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition"
                       >
-                        &#9999;&#65039; Edit
+                        &#9999;&#65039; {t("d.edit")}
                       </button>
                       <button
                         onClick={() => handleDelete(svc)}
                         disabled={deletingId === svc.id}
                         className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-60 transition"
                       >
-                        {deletingId === svc.id ? "..." : "&#128465;&#65039; Delete"}
+                        {deletingId === svc.id ? "..." : <>&#128465;&#65039; {t("d.delete")}</>}
                       </button>
                     </td>
                   </tr>

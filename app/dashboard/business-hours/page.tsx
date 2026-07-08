@@ -4,17 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
 
 // Sunday-first (Jordan work week). day_of_week uses JS getDay(): 0=Sun … 6=Sat.
-const DAYS = [
-  { label: "Sunday",    index: 0 },
-  { label: "Monday",    index: 1 },
-  { label: "Tuesday",   index: 2 },
-  { label: "Wednesday", index: 3 },
-  { label: "Thursday",  index: 4 },
-  { label: "Friday",    index: 5 },
-  { label: "Saturday",  index: 6 },
-];
+const DAYS = [0, 1, 2, 3, 4, 5, 6].map(index => ({ index }));
 
 interface DayState { open: boolean; start: string; end: string; }
 type WeekState = Record<number, DayState>;
@@ -31,6 +24,7 @@ function getErr(e: unknown) {
 
 export default function BusinessHoursPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [userId, setUserId] = useState<string | null>(null);
   const [week, setWeek] = useState<WeekState>(defaultWeek());
   const [loading, setLoading] = useState(true);
@@ -58,11 +52,12 @@ export default function BusinessHoursPage() {
   }
 
   function validate(): string | null {
-    for (const { label, index } of DAYS) {
+    for (const { index } of DAYS) {
       const d = week[index];
       if (!d.open) continue;
-      if (!d.start || !d.end) return `${label}: enter both start and end times.`;
-      if (d.start >= d.end) return `${label}: end time must be after start time (${d.start} → ${d.end}).`;
+      const dayName = t(`day.${index}`);
+      if (!d.start || !d.end) return `${dayName}: ${t("hours.from")} / ${t("hours.to")}`;
+      if (d.start >= d.end) return `${dayName}: ${t("hours.endAfterStart")} (${d.start} → ${d.end})`;
     }
     return null;
   }
@@ -80,51 +75,51 @@ export default function BusinessHoursPage() {
       const { error: insErr } = await supabase.from("business_hours").insert(rows);
       if (insErr) { showToast(getErr(insErr), "error"); setSaving(false); return; }
     }
-    showToast("Business hours saved successfully.");
+    showToast(t("hours.saved"));
     setSaving(false);
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">{t("d.loading")}</p></div>;
 
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-2xl">
-      <h2 className="text-2xl font-bold text-gray-800 mb-2">Business Hours</h2>
-      <p className="text-gray-500 text-sm mb-8">Set the days and times your business is open for bookings.</p>
+      <h2 className="text-2xl font-bold text-gray-800 mb-2">{t("hours.title")}</h2>
+      <p className="text-gray-500 text-sm mb-8">{t("hours.subtitle")}</p>
 
       <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-100 mb-6">
-        {DAYS.map(({ label, index }) => {
+        {DAYS.map(({ index }) => {
           const day = week[index];
           const timeError = day.open && day.start && day.end && day.start >= day.end;
           return (
             <div key={index} className="px-6 py-5">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-4 min-w-[160px]">
-                  <span className="font-medium text-gray-800 w-24">{label}</span>
+                  <span className="font-medium text-gray-800 w-24">{t(`day.${index}`)}</span>
                   <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
                     <button type="button" onClick={() => setDay(index, { open: true })}
-                      className={`px-3 py-1.5 font-medium transition ${day.open ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>Open</button>
+                      className={`px-3 py-1.5 font-medium transition ${day.open ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>{t("hours.open")}</button>
                     <button type="button" onClick={() => setDay(index, { open: false })}
-                      className={`px-3 py-1.5 font-medium transition ${!day.open ? "bg-gray-700 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>Closed</button>
+                      className={`px-3 py-1.5 font-medium transition ${!day.open ? "bg-gray-700 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>{t("hours.closed")}</button>
                   </div>
                 </div>
                 {day.open ? (
                   <div className="flex flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400 uppercase tracking-wide">From</span>
+                        <span className="text-xs text-gray-400 uppercase tracking-wide">{t("hours.from")}</span>
                         <input type="time" value={day.start} onChange={e => setDay(index, { start: e.target.value })}
                           className={`border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${timeError ? "border-red-400" : "border-gray-300"}`} />
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400 uppercase tracking-wide">To</span>
+                        <span className="text-xs text-gray-400 uppercase tracking-wide">{t("hours.to")}</span>
                         <input type="time" value={day.end} onChange={e => setDay(index, { end: e.target.value })}
                           className={`border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${timeError ? "border-red-400" : "border-gray-300"}`} />
                       </div>
                     </div>
-                    {timeError && <p className="text-red-600 text-xs">End time must be after start time.</p>}
+                    {timeError && <p className="text-red-600 text-xs">{t("hours.endAfterStart")}</p>}
                   </div>
                 ) : (
-                  <span className="text-sm text-gray-400 italic">Closed all day</span>
+                  <span className="text-sm text-gray-400 italic">{t("hours.closedAllDay")}</span>
                 )}
               </div>
             </div>
@@ -134,7 +129,7 @@ export default function BusinessHoursPage() {
 
       <button onClick={handleSave} disabled={saving}
         className="bg-emerald-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition">
-        {saving ? "Saving..." : "Save Hours"}
+        {saving ? t("d.saving") : t("hours.save")}
       </button>
     </main>
   );

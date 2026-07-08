@@ -8,6 +8,7 @@ import { bookingUrl } from "@/lib/slug";
 import { showToast } from "@/components/Toast";
 import { QRCodeCard } from "@/components/QRCodeCard";
 import { COUNTRIES, DEFAULT_COUNTRY, DEFAULT_CURRENCY } from "@/lib/currency";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
 
 interface Profile {
   id?: string;
@@ -41,6 +42,7 @@ const PW_EMPTY = { current: "", next: "", confirm: "" };
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { t, locale } = useLanguage();
   const [profile, setProfile]     = useState<Profile | null>(null);
   const [loading, setLoading]     = useState(true);
   const [copied, setCopied]       = useState(false);
@@ -87,7 +89,7 @@ export default function SettingsPage() {
       setProfile(p => p ? { ...p, country: bizForm.country, currency: bizForm.currency, whatsapp_number: whatsapp || null } : p);
       setBizForm(f => ({ ...f, whatsapp }));
       setEditingBiz(false);
-      showToast("Business settings saved.");
+      showToast(t("settings.saved"));
     }
     setBizSaving(false);
   }
@@ -96,7 +98,7 @@ export default function SettingsPage() {
     if (!profile) return;
     await navigator.clipboard.writeText(bookingUrl(profile.business_name));
     setCopied(true);
-    showToast("Link copied to clipboard!");
+    showToast(t("dash.linkCopied"));
     setTimeout(() => setCopied(false), 2000);
   }
 
@@ -105,11 +107,11 @@ export default function SettingsPage() {
     setPwError("");
 
     if (pw.next.length < 8) {
-      setPwError("New password must be at least 8 characters.");
+      setPwError(t("settings.pwTooShort"));
       return;
     }
     if (pw.next !== pw.confirm) {
-      setPwError("Passwords do not match.");
+      setPwError(t("settings.pwMismatch"));
       return;
     }
 
@@ -119,63 +121,63 @@ export default function SettingsPage() {
       setPwError(error.message);
       showToast(error.message);
     } else {
-      showToast("Password updated successfully.");
+      showToast(t("settings.pwUpdated"));
       setPw(PW_EMPTY);
     }
     setPwSaving(false);
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Loading...</p></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">{t("d.loading")}</p></div>;
 
   const link = profile ? bookingUrl(profile.business_name) : "";
   const memberSince = profile?.created_at
-    ? new Date(profile.created_at).toLocaleDateString("en-AE", { year: "numeric", month: "long" })
+    ? new Date(profile.created_at).toLocaleDateString(locale === "ar" ? "ar-JO" : "en-GB", { year: "numeric", month: "long", numberingSystem: "latn" })
     : "—";
 
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-2xl">
-      <h2 className="text-2xl font-bold text-gray-800 mb-1">Settings</h2>
-      <p className="text-gray-500 text-sm mb-8">Your account and business details.</p>
+      <h2 className="text-2xl font-bold text-gray-800 mb-1">{t("settings.title")}</h2>
+      <p className="text-gray-500 text-sm mb-8">{t("settings.subtitle")}</p>
 
       {/* Business Info */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-        <h3 className="font-semibold text-gray-700 mb-1">Business Details</h3>
-        <p className="text-xs text-gray-400 mb-4">Your public-facing business information.</p>
-        <Row label="Business Name" value={profile?.business_name} />
-        <Row label="Email"         value={profile?.email} />
-        <Row label="Member Since"  value={memberSince} />
+        <h3 className="font-semibold text-gray-700 mb-1">{t("settings.bizDetails")}</h3>
+        <p className="text-xs text-gray-400 mb-4">{t("settings.bizDetailsDesc")}</p>
+        <Row label={t("settings.businessName")} value={profile?.business_name} />
+        <Row label={t("settings.email")}        value={profile?.email} />
+        <Row label={t("settings.memberSince")}  value={memberSince} />
       </div>
 
       {/* Localization & Contact (editable) */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
         <div className="flex items-start justify-between gap-4 mb-1">
-          <h3 className="font-semibold text-gray-700">Localization &amp; Contact</h3>
+          <h3 className="font-semibold text-gray-700">{t("settings.localization")}</h3>
           {!editingBiz && (
             <button
               onClick={() => setEditingBiz(true)}
               className="text-xs font-semibold text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition"
             >
-              Edit
+              {t("d.edit")}
             </button>
           )}
         </div>
-        <p className="text-xs text-gray-400 mb-4">Country, currency, and WhatsApp shown to your customers.</p>
+        <p className="text-xs text-gray-400 mb-4">{t("settings.localizationDesc")}</p>
 
         {!editingBiz ? (
           <>
-            <Row label="Country"  value={COUNTRIES.find(c => c.code === (profile?.country ?? DEFAULT_COUNTRY))?.label ?? "—"} />
-            <Row label="Currency" value={profile?.currency ?? DEFAULT_CURRENCY} />
+            <Row label={t("settings.country")}  value={COUNTRIES.find(c => c.code === (profile?.country ?? DEFAULT_COUNTRY))?.label ?? "—"} />
+            <Row label={t("settings.currency")} value={profile?.currency ?? DEFAULT_CURRENCY} />
             <Row
-              label="WhatsApp"
+              label={t("settings.whatsapp")}
               value={profile?.whatsapp_number
                 ? <span dir="ltr">+{profile.whatsapp_number}</span>
-                : <span className="text-gray-300 italic">Not set</span>}
+                : <span className="text-gray-300 italic">{t("settings.notSet")}</span>}
             />
           </>
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("settings.country")}</label>
               <select
                 value={bizForm.country}
                 onChange={e => setBizForm(f => ({ ...f, country: e.target.value }))}
@@ -185,7 +187,7 @@ export default function SettingsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("settings.currency")}</label>
               <select
                 value={bizForm.currency}
                 onChange={e => setBizForm(f => ({ ...f, currency: e.target.value }))}
@@ -193,10 +195,10 @@ export default function SettingsPage() {
               >
                 {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
-              <p className="text-xs text-gray-400 mt-1">Changing your country does not change the currency automatically.</p>
+              <p className="text-xs text-gray-400 mt-1">{t("settings.currencyHint")}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp Number</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("settings.whatsappNumber")}</label>
               <input
                 type="tel"
                 dir="ltr"
@@ -205,7 +207,7 @@ export default function SettingsPage() {
                 placeholder="+9627XXXXXXXX"
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
-              <p className="text-xs text-gray-400 mt-1">Include the country code. Stored as digits only (e.g. 9627XXXXXXXX).</p>
+              <p className="text-xs text-gray-400 mt-1">{t("settings.whatsappHint")}</p>
             </div>
             <div className="flex gap-3">
               <button
@@ -213,7 +215,7 @@ export default function SettingsPage() {
                 disabled={bizSaving}
                 className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 transition"
               >
-                {bizSaving ? "Saving..." : "Save"}
+                {bizSaving ? t("d.saving") : t("d.save")}
               </button>
               <button
                 onClick={() => {
@@ -226,7 +228,7 @@ export default function SettingsPage() {
                 }}
                 className="px-6 py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-600 hover:bg-gray-50 transition"
               >
-                Cancel
+                {t("d.cancel")}
               </button>
             </div>
           </div>
@@ -235,8 +237,8 @@ export default function SettingsPage() {
 
       {/* Booking Link */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-        <h3 className="font-semibold text-gray-700 mb-1">Your Booking Link</h3>
-        <p className="text-xs text-gray-400 mb-4">Share this link with customers to accept online bookings.</p>
+        <h3 className="font-semibold text-gray-700 mb-1">{t("settings.bookingLink")}</h3>
+        <p className="text-xs text-gray-400 mb-4">{t("settings.bookingLinkDesc")}</p>
         <div className="flex gap-3 items-center">
           <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-mono text-gray-700 truncate">
             {link}
@@ -247,12 +249,12 @@ export default function SettingsPage() {
               copied ? "bg-green-600 text-white" : "bg-emerald-600 text-white hover:bg-emerald-700"
             }`}
           >
-            {copied ? "✓ Copied!" : "Copy"}
+            {copied ? `✓ ${t("dash.copied")}` : t("settings.copy")}
           </button>
         </div>
         <div className="mt-3">
           <Link href={link} target="_blank" className="text-xs text-emerald-600 hover:underline">
-            Open your booking page &rarr;
+            {t("settings.openPage")}
           </Link>
         </div>
       </div>
@@ -276,8 +278,8 @@ export default function SettingsPage() {
 
       {/* Change Password */}
       <div className="bg-white rounded-xl shadow-sm p-6">
-        <h3 className="font-semibold text-gray-700 mb-1">Change Password</h3>
-        <p className="text-xs text-gray-400 mb-5">Update your account password. Minimum 8 characters.</p>
+        <h3 className="font-semibold text-gray-700 mb-1">{t("settings.changePassword")}</h3>
+        <p className="text-xs text-gray-400 mb-5">{t("settings.changePasswordDesc")}</p>
 
         <form onSubmit={handleChangePassword} className="space-y-4">
           {pwError && (
@@ -287,7 +289,7 @@ export default function SettingsPage() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("settings.currentPassword")}</label>
             <input
               type="password"
               value={pw.current}
@@ -298,7 +300,7 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("settings.newPassword")}</label>
             <input
               type="password"
               value={pw.next}
@@ -310,7 +312,7 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("settings.confirmPassword")}</label>
             <input
               type="password"
               value={pw.confirm}
@@ -326,7 +328,7 @@ export default function SettingsPage() {
             disabled={pwSaving || !pw.next || !pw.confirm}
             className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 transition"
           >
-            {pwSaving ? "Updating..." : "Update Password"}
+            {pwSaving ? t("d.updating") : t("settings.updatePassword")}
           </button>
         </form>
       </div>

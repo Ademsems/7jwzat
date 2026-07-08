@@ -4,23 +4,26 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useLanguage, useApplyHtmlDir, LanguageToggle } from "@/lib/i18n/LanguageProvider";
 
 const NAV_ITEMS = [
-  { label: "Dashboard",      href: "/dashboard",                icon: "\u{1F3E0}" },
-  { label: "Analytics",      href: "/dashboard/analytics",      icon: "\u{1F4CA}" },
-  { label: "Services",       href: "/dashboard/services",       icon: "\u{2702}️" },
-  { label: "Custom Fields",  href: "/dashboard/custom-fields",  icon: "\u{1F4DD}" },
-  { label: "Sessions",       href: "/dashboard/sessions",       icon: "\u{1F465}" },
-  { label: "Staff",          href: "/dashboard/staff",          icon: "\u{1F465}\u{200D}\u{1F91D}\u{200D}\u{1F465}" },
-  { label: "Customers",      href: "/dashboard/customers",      icon: "\u{1F464}" },
-  { label: "Business Hours", href: "/dashboard/business-hours", icon: "\u{1F550}" },
-  { label: "Bookings",       href: "/dashboard/bookings",       icon: "\u{1F4C5}" },
-  { label: "Settings",       href: "/dashboard/settings",       icon: "\u{2699}️" },
+  { key: "nav.dashboard",     href: "/dashboard",                icon: "\u{1F3E0}" },
+  { key: "nav.analytics",     href: "/dashboard/analytics",      icon: "\u{1F4CA}" },
+  { key: "nav.services",      href: "/dashboard/services",       icon: "\u{2702}️" },
+  { key: "nav.customFields",  href: "/dashboard/custom-fields",  icon: "\u{1F4DD}" },
+  { key: "nav.sessions",      href: "/dashboard/sessions",       icon: "\u{1F465}" },
+  { key: "nav.staff",         href: "/dashboard/staff",          icon: "\u{1F465}\u{200D}\u{1F91D}\u{200D}\u{1F465}" },
+  { key: "nav.customers",     href: "/dashboard/customers",      icon: "\u{1F464}" },
+  { key: "nav.businessHours", href: "/dashboard/business-hours", icon: "\u{1F550}" },
+  { key: "nav.bookings",      href: "/dashboard/bookings",       icon: "\u{1F4C5}" },
+  { key: "nav.settings",      href: "/dashboard/settings",       icon: "\u{2699}️" },
 ];
 
 export function DashboardNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useLanguage();
+  useApplyHtmlDir(); // flip <html> dir/lang for the whole dashboard while mounted
   const [mobileOpen, setMobileOpen] = useState(false);
 
   function isActive(href: string) {
@@ -51,7 +54,7 @@ export function DashboardNav() {
                 }`}
             >
               <span>{item.icon}</span>
-              <span>{item.label}</span>
+              <span>{t(item.key)}</span>
             </Link>
           );
         })}
@@ -65,17 +68,18 @@ export function DashboardNav() {
       <aside className="hidden lg:flex w-64 bg-white shadow-md flex-col shrink-0 min-h-screen">
         <div className="px-6 py-6 border-b">
           <Link href="/" className="text-2xl font-bold text-slate-900">7jwzat</Link>
-          <p className="text-xs text-gray-400 mt-0.5">Booking System</p>
+          <p className="text-xs text-gray-400 mt-0.5">{t("nav.tagline")}</p>
         </div>
         <nav className="flex-1 px-4 py-6 space-y-1">
           <NavLinks />
         </nav>
-        <div className="px-4 py-4 border-t">
+        <div className="px-4 py-4 border-t space-y-3">
+          <LanguageToggle className="w-full justify-center" />
           <button
             onClick={handleLogout}
-            className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition text-sm font-medium"
+            className="w-full text-start flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition text-sm font-medium"
           >
-            <span>{"\u{1F6AA}"}</span> Logout
+            <span>{"\u{1F6AA}"}</span> {t("nav.logout")}
           </button>
         </div>
       </aside>
@@ -101,12 +105,13 @@ export function DashboardNav() {
           />
           <div className="lg:hidden fixed top-14 left-0 right-0 z-50 bg-white border-b shadow-xl px-4 py-3 space-y-1">
             <NavLinks onNavigate={() => setMobileOpen(false)} />
-            <div className="border-t border-gray-100 pt-2 mt-2">
+            <div className="border-t border-gray-100 pt-2 mt-2 space-y-2">
+              <LanguageToggle className="w-full justify-center" />
               <button
                 onClick={handleLogout}
-                className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition text-sm font-medium"
+                className="w-full text-start flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition text-sm font-medium"
               >
-                <span>{"\u{1F6AA}"}</span> Logout
+                <span>{"\u{1F6AA}"}</span> {t("nav.logout")}
               </button>
             </div>
           </div>
