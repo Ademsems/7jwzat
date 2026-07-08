@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { COUNTRIES, DEFAULT_COUNTRY, currencyForCountry } from "@/lib/currency";
 
 type BusinessType =
   | "hair_beauty"
@@ -34,6 +35,7 @@ export default function SignupPage() {
     password: "",
     confirmPassword: "",
     businessName: "",
+    country: DEFAULT_COUNTRY,
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,8 +66,26 @@ export default function SignupPage() {
           email: form.email,
           business_name: form.businessName.trim(),
           business_type: selectedType ?? "other",
+          country: form.country,
+          currency: currencyForCountry(form.country),
         });
         if (profileError) throw profileError;
+
+        // Pre-populate default business hours (Sun–Thu 09:00–17:00, Fri/Sat
+        // closed) so new businesses avoid the "hours not configured" dead-end.
+        // Non-fatal: never block signup on this.
+        try {
+          const defaultHours = [0, 1, 2, 3, 4].map(dow => ({
+            user_id: data.user!.id,
+            day_of_week: dow,
+            start_time: "09:00",
+            end_time: "17:00",
+          }));
+          await supabase.from("business_hours").insert(defaultHours);
+        } catch (hoursErr) {
+          console.error("signup: default hours insert failed (non-fatal):", hoursErr);
+        }
+
         router.push("/dashboard");
       }
     } catch (err: unknown) {
@@ -158,6 +178,19 @@ export default function SignupPage() {
         )}
 
         <form onSubmit={handleSubmit} autoComplete="off" className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+            <select
+              value={form.country}
+              onChange={e => setForm({ ...form, country: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              {COUNTRIES.map(c => (
+                <option key={c.code} value={c.code}>{c.label} ({c.currency})</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Sets your default currency. You can change it later in Settings.</p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
             <input

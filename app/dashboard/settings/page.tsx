@@ -7,8 +7,26 @@ import { supabase } from "@/lib/supabase";
 import { bookingUrl } from "@/lib/slug";
 import { showToast } from "@/components/Toast";
 import { QRCodeCard } from "@/components/QRCodeCard";
+import { COUNTRIES, DEFAULT_COUNTRY, DEFAULT_CURRENCY } from "@/lib/currency";
 
-interface Profile { email: string; business_name: string; phone_number?: string | null; created_at?: string; }
+interface Profile {
+  id?: string;
+  email: string;
+  business_name: string;
+  phone_number?: string | null;
+  created_at?: string;
+  country?: string | null;
+  currency?: string | null;
+  whatsapp_number?: string | null;
+}
+
+// Unique currency options (from the country map).
+const CURRENCIES = Array.from(new Set(COUNTRIES.map(c => c.currency)));
+
+/** Store digits only (no +, no spaces/dashes). */
+function normalizeWhatsapp(raw: string): string {
+  return raw.replace(/[^\d]/g, "").replace(/^0+/, "");
+}
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -32,16 +50,47 @@ export default function SettingsPage() {
   const [pwError, setPwError]     = useState("");
   const [pwSaving, setPwSaving]   = useState(false);
 
+  // Localization & contact editing
+  const [editingBiz, setEditingBiz] = useState(false);
+  const [bizForm, setBizForm]       = useState({ country: DEFAULT_COUNTRY, currency: DEFAULT_CURRENCY, whatsapp: "" });
+  const [bizSaving, setBizSaving]   = useState(false);
+
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/auth/login"); return; }
       const { data } = await supabase.from("users").select("*").eq("id", session.user.id).single();
-      setProfile(data ?? { email: session.user.email ?? "", business_name: "My Business" });
+      const prof = data ?? { email: session.user.email ?? "", business_name: "My Business" };
+      setProfile(prof);
+      setBizForm({
+        country:  prof.country  ?? DEFAULT_COUNTRY,
+        currency: prof.currency ?? DEFAULT_CURRENCY,
+        whatsapp: prof.whatsapp_number ?? "",
+      });
       setLoading(false);
     }
     load();
   }, [router]);
+
+  async function handleBizSave() {
+    if (!profile?.id) return;
+    setBizSaving(true);
+    const whatsapp = normalizeWhatsapp(bizForm.whatsapp);
+    // Changing country does NOT auto-change currency (currency edited independently).
+    const { error } = await supabase
+      .from("users")
+      .update({ country: bizForm.country, currency: bizForm.currency, whatsapp_number: whatsapp || null })
+      .eq("id", profile.id);
+    if (error) {
+      showToast(error.message);
+    } else {
+      setProfile(p => p ? { ...p, country: bizForm.country, currency: bizForm.currency, whatsapp_number: whatsapp || null } : p);
+      setBizForm(f => ({ ...f, whatsapp }));
+      setEditingBiz(false);
+      showToast("Business settings saved.");
+    }
+    setBizSaving(false);
+  }
 
   async function copyLink() {
     if (!profile) return;
@@ -95,6 +144,93 @@ export default function SettingsPage() {
         <Row label="Business Name" value={profile?.business_name} />
         <Row label="Email"         value={profile?.email} />
         <Row label="Member Since"  value={memberSince} />
+      </div>
+
+      {/* Localization & Contact (editable) */}
+      <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <div className="flex items-start justify-between gap-4 mb-1">
+          <h3 className="font-semibold text-gray-700">Localization &amp; Contact</h3>
+          {!editingBiz && (
+            <button
+              onClick={() => setEditingBiz(true)}
+              className="text-xs font-semibold text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-gray-400 mb-4">Country, currency, and WhatsApp shown to your customers.</p>
+
+        {!editingBiz ? (
+          <>
+            <Row label="Country"  value={COUNTRIES.find(c => c.code === (profile?.country ?? DEFAULT_COUNTRY))?.label ?? "—"} />
+            <Row label="Currency" value={profile?.currency ?? DEFAULT_CURRENCY} />
+            <Row
+              label="WhatsApp"
+              value={profile?.whatsapp_number
+                ? <span dir="ltr">+{profile.whatsapp_number}</span>
+                : <span className="text-gray-300 italic">Not set</span>}
+            />
+          </>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+              <select
+                value={bizForm.country}
+                onChange={e => setBizForm(f => ({ ...f, country: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+              <select
+                value={bizForm.currency}
+                onChange={e => setBizForm(f => ({ ...f, currency: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Changing your country does not change the currency automatically.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp Number</label>
+              <input
+                type="tel"
+                dir="ltr"
+                value={bizForm.whatsapp}
+                onChange={e => setBizForm(f => ({ ...f, whatsapp: e.target.value }))}
+                placeholder="+9627XXXXXXXX"
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">Include the country code. Stored as digits only (e.g. 9627XXXXXXXX).</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleBizSave}
+                disabled={bizSaving}
+                className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 transition"
+              >
+                {bizSaving ? "Saving..." : "Save"}
+              </button>
+              <button
+                onClick={() => {
+                  setEditingBiz(false);
+                  setBizForm({
+                    country:  profile?.country  ?? DEFAULT_COUNTRY,
+                    currency: profile?.currency ?? DEFAULT_CURRENCY,
+                    whatsapp: profile?.whatsapp_number ?? "",
+                  });
+                }}
+                className="px-6 py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-600 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Booking Link */}

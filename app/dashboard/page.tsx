@@ -7,11 +7,13 @@ import { supabase } from "@/lib/supabase";
 import { bookingUrl } from "@/lib/slug";
 import { showToast } from "@/components/Toast";
 import { QRCodeCard } from "@/components/QRCodeCard";
+import { formatPrice, DEFAULT_CURRENCY } from "@/lib/currency";
 
 interface UserProfile {
   email: string;
   business_name: string;
   business_type?: string | null;
+  currency?: string | null;
 }
 interface Stats {
   totalBookings: number;
@@ -56,7 +58,7 @@ export default function DashboardPage() {
       const firstOfMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`;
 
       const [profileRes, totalRes, todayRes, svcRes, revenueRes] = await Promise.all([
-        supabase.from("users").select("email, business_name, business_type").eq("id", userId).single(),
+        supabase.from("users").select("email, business_name, business_type, currency").eq("id", userId).single(),
         supabase.from("bookings").select("*", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("bookings").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("booking_date", today),
         supabase.from("services").select("*", { count: "exact", head: true }).eq("user_id", userId),
@@ -102,7 +104,7 @@ export default function DashboardPage() {
     { label: "Total Bookings", value: String(stats.totalBookings) },
     { label: "Today",          value: String(stats.todayBookings) },
     { label: "Services",       value: String(stats.serviceCount) },
-    { label: "Revenue (MTD)",  value: `AED ${stats.revenueMTD.toFixed(2)}` },
+    { label: "Revenue (MTD)",  value: formatPrice(stats.revenueMTD, profile?.currency ?? DEFAULT_CURRENCY) },
   ];
 
   return (

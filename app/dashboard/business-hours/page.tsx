@@ -5,14 +5,15 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 
+// Sunday-first (Jordan work week). day_of_week uses JS getDay(): 0=Sun … 6=Sat.
 const DAYS = [
+  { label: "Sunday",    index: 0 },
   { label: "Monday",    index: 1 },
   { label: "Tuesday",   index: 2 },
   { label: "Wednesday", index: 3 },
   { label: "Thursday",  index: 4 },
   { label: "Friday",    index: 5 },
   { label: "Saturday",  index: 6 },
-  { label: "Sunday",    index: 0 },
 ];
 
 interface DayState { open: boolean; start: string; end: string; }

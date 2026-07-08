@@ -271,7 +271,7 @@ export default function NewBookingPage() {
                 type="tel"
                 value={customerPhone}
                 onChange={e => setCustomerPhone(e.target.value)}
-                placeholder="+971 50 123 4567"
+                placeholder="+962 7X XXX XXXX"
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>

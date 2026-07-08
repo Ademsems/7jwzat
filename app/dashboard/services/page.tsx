@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
+import { formatPrice, DEFAULT_CURRENCY } from "@/lib/currency";
 
 interface Service { id: string; name: string; duration: number; price: number; is_group_service: boolean; }
 const EMPTY = { name: "", duration: "", price: "", isGroup: false };
@@ -15,6 +16,7 @@ function getErr(e: unknown) {
 export default function ServicesPage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<string>(DEFAULT_CURRENCY);
   const [services, setServices] = useState<Service[]>([]);
   const [form, setForm] = useState(EMPTY);
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; duration?: string; price?: string }>({});
@@ -29,6 +31,8 @@ export default function ServicesPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/auth/login"); return; }
     setUserId(session.user.id);
+    const { data: profile } = await supabase.from("users").select("currency").eq("id", session.user.id).single();
+    if (profile?.currency) setCurrency(profile.currency);
     await fetchServices();
     setLoading(false);
   }
@@ -162,7 +166,7 @@ export default function ServicesPage() {
               {fieldErrors.duration && <p className="text-red-600 text-xs mt-1">{fieldErrors.duration}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Price (AED)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Price ({currency})</label>
               <input
                 type="number"
                 value={form.price}
@@ -245,7 +249,7 @@ export default function ServicesPage() {
                   <tr key={svc.id} className="hover:bg-gray-50 transition">
                     <td className="py-3 pr-4 font-medium text-gray-800">{svc.name}</td>
                     <td className="py-3 pr-4 text-gray-600">{svc.duration} min</td>
-                    <td className="py-3 pr-4 text-gray-600">AED {Number(svc.price).toFixed(2)}</td>
+                    <td className="py-3 pr-4 text-gray-600">{formatPrice(svc.price, currency)}</td>
                     <td className="py-3 pr-4">
                       {svc.is_group_service ? (
                         <span className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full font-medium">

@@ -38,8 +38,8 @@ const RANGES: { key: RangeKey; label: string }[] = [
 ];
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const DOW_LABELS  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const DOW_JS      = [1, 2, 3, 4, 5, 6, 0]; // getDay() values for Mon → Sun
+const DOW_LABELS  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const DOW_JS      = [0, 1, 2, 3, 4, 5, 6]; // getDay() values, Sunday first (Jordan week)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function localDate(dt: Date): string {
@@ -57,8 +57,9 @@ function getDateRange(r: RangeKey): { start: string; end: string } {
   }
 }
 
-function fmtAED(n: number): string {
-  return "AED " + Math.round(n).toLocaleString("en-AE");
+let ACTIVE_CURRENCY = "JOD"; // set at render time from the business profile
+function fmtMoney(n: number): string {
+  return ACTIVE_CURRENCY + " " + Math.round(n).toLocaleString("en-US");
 }
 
 function fmtHour(h: number): string {
@@ -124,7 +125,7 @@ function BarChart({ bars }: { bars: { label: string; value: number }[] }) {
         {/* Max label */}
         <div className="flex justify-between items-center mb-1 px-1">
           <span className="text-xs text-gray-400">0</span>
-          <span className="text-xs text-gray-400">{fmtAED(max)}</span>
+          <span className="text-xs text-gray-400">{fmtMoney(max)}</span>
         </div>
         {/* Bar area */}
         <div className="relative flex items-end gap-1 h-48 border-b border-l border-gray-100">
@@ -136,7 +137,7 @@ function BarChart({ bars }: { bars: { label: string; value: number }[] }) {
               {bar.value > 0 && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover:opacity-100 pointer-events-none transition z-20">
                   <div className="bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap shadow-lg">
-                    {fmtAED(bar.value)}
+                    {fmtMoney(bar.value)}
                   </div>
                 </div>
               )}
@@ -256,7 +257,7 @@ function TopList({ items, emptyMsg }: { items: TopItem[]; emptyMsg: string }) {
               {item.count} booking{item.count !== 1 ? "s" : ""}
             </span>
             <span className="text-xs text-gray-400 shrink-0 w-24 text-right hidden sm:block">
-              {fmtAED(item.revenue)}
+              {fmtMoney(item.revenue)}
             </span>
           </div>
         </div>
@@ -327,8 +328,12 @@ export default function AnalyticsPage() {
   const router = useRouter();
 
   const [userId,    setUserId]    = useState<string | null>(null);
+  const [currency,  setCurrency]  = useState<string>("JOD");
   const [range,     setRange]     = useState<RangeKey>("this-month");
   const [loading,   setLoading]   = useState(true);
+
+  // Make the business currency available to module-level money formatters.
+  ACTIVE_CURRENCY = currency;
 
   // Raw data state
   const [rb,        setRb]        = useState<RangeBooking[]>([]);
@@ -342,6 +347,8 @@ export default function AnalyticsPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/auth/login"); return; }
       setUserId(session.user.id);
+      const { data: profile } = await supabase.from("users").select("currency").eq("id", session.user.id).single();
+      if (profile?.currency) setCurrency(profile.currency);
     }
     init();
   }, [router]);
@@ -609,7 +616,7 @@ export default function AnalyticsPage() {
         />
         <StatCard
           title="Completed Revenue"
-          value={fmtAED(completedRev)}
+          value={fmtMoney(completedRev)}
           sub={`From ${completedN} completed appointment${completedN !== 1 ? "s" : ""}`}
         />
         <StatCard

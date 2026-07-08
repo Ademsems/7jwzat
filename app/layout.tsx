@@ -1,6 +1,23 @@
 import type { Metadata } from "next";
+import { Inter, IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/Toast";
+import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
+
+// Self-hosted, auto-subset fonts (replaces any render-blocking Google Fonts link).
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const arabic = IBM_Plex_Sans_Arabic({
+  subsets: ["arabic"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-arabic",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "7jwzat - Online Booking for Salons, Spas & Clinics",
@@ -19,11 +36,16 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Global default stays LTR/English (marketing + untranslated dashboard).
+  // Localized surfaces (booking page now; dashboard in Part B) flip <html>
+  // dir/lang to the active locale while they are mounted via useApplyHtmlDir().
   return (
-    <html lang="en">
+    <html lang="en" dir="ltr" className={`${inter.variable} ${arabic.variable}`}>
       <body className="min-h-screen bg-white text-slate-900 antialiased">
-        {children}
-        <ToastProvider />
+        <LanguageProvider>
+          {children}
+          <ToastProvider />
+        </LanguageProvider>
       </body>
     </html>
   );
