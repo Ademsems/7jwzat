@@ -39,8 +39,16 @@ export default function RootLayout({
   // Global default stays LTR/English (marketing + untranslated dashboard).
   // Localized surfaces (booking page now; dashboard in Part B) flip <html>
   // dir/lang to the active locale while they are mounted via useApplyHtmlDir().
+  // Runs before hydration to set <html> lang/dir from the persisted locale
+  // (default "ar"), eliminating the first-paint flash of the wrong direction
+  // before useApplyHtmlDir() runs. React remains the ongoing source of truth.
+  const noFlashScript = `(function(){try{var l=localStorage.getItem('7jwzat-lang');if(l!=='en'&&l!=='ar')l='ar';var e=document.documentElement;e.lang=l;e.dir=l==='ar'?'rtl':'ltr';}catch(e){}})();`;
+
   return (
-    <html lang="en" dir="ltr" className={`${inter.variable} ${arabic.variable}`}>
+    <html lang="ar" dir="rtl" suppressHydrationWarning className={`${inter.variable} ${arabic.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
+      </head>
       <body className="min-h-screen bg-white text-slate-900 antialiased">
         <LanguageProvider>
           {children}
