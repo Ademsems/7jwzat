@@ -601,4 +601,26 @@ export const ar: Record<string, string> = {
   "m.terms.p2": "يوفّر حجوزات منصّة برمجية لحجز المواعيد. نحن غير مسؤولين عن جودة الخدمات التي تقدّمها الأنشطة المدرجة على المنصّة، ولا عن أي نزاعات بين الأنشطة وزبائنها.",
   "m.terms.p3": "حجوزات مجاني خلال سنة الإطلاق. وعند إطلاق الباقات المدفوعة، سنُشعرك بوضوح ومسبقاً، وتحتفظ الأعمال المؤسِّسة بتسعير خاص مدى الحياة.",
   "m.terms.p4": "نحتفظ بحق تعليق الحسابات التي تخالف هذه الشروط أو تسيء استخدام الخدمة.",
+
+  // Hero mockup — currency-aware parts
+  "m.hero.mock.svc1": "قص وتصفيف",
+  "m.hero.mock.svc2": "منيكير",
+  "m.hero.mock.dur1": "60 دقيقة",
+  "m.hero.mock.dur2": "45 دقيقة",
+
+  // Footer geo/currency selector
+  "m.footer.language": "اللغة",
+  "m.footer.region": "الدولة / المنطقة",
+  "m.footer.currency": "العملة",
+
+  // Country names
+  "m.country.JO": "الأردن",
+  "m.country.AE": "الإمارات العربية المتحدة",
+  "m.country.SA": "السعودية",
+  "m.country.KW": "الكويت",
+  "m.country.QA": "قطر",
+  "m.country.BH": "البحرين",
+  "m.country.OM": "عُمان",
+  "m.country.EG": "مصر",
+  "m.country.OTHER": "أخرى",
 };

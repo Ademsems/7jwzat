@@ -600,4 +600,26 @@ export const en: Record<string, string> = {
   "m.terms.p2": "7jwzat provides a software platform for appointment booking. We are not responsible for the quality of services provided by businesses listed on the platform, or for disputes between businesses and their customers.",
   "m.terms.p3": "7jwzat is free during our launch year. When paid plans are introduced, we'll give clear notice in advance, and founding businesses keep special lifetime pricing.",
   "m.terms.p4": "We reserve the right to suspend accounts that violate these terms or engage in abusive behavior.",
+
+  // Hero mockup — currency-aware parts
+  "m.hero.mock.svc1": "Haircut & Styling",
+  "m.hero.mock.svc2": "Manicure",
+  "m.hero.mock.dur1": "60 min",
+  "m.hero.mock.dur2": "45 min",
+
+  // Footer geo/currency selector
+  "m.footer.language": "Language",
+  "m.footer.region": "Country / Region",
+  "m.footer.currency": "Currency",
+
+  // Country names
+  "m.country.JO": "Jordan",
+  "m.country.AE": "United Arab Emirates",
+  "m.country.SA": "Saudi Arabia",
+  "m.country.KW": "Kuwait",
+  "m.country.QA": "Qatar",
+  "m.country.BH": "Bahrain",
+  "m.country.OM": "Oman",
+  "m.country.EG": "Egypt",
+  "m.country.OTHER": "Other",
 };

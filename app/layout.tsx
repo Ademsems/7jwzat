@@ -39,10 +39,14 @@ export default function RootLayout({
   // Global default stays LTR/English (marketing + untranslated dashboard).
   // Localized surfaces (booking page now; dashboard in Part B) flip <html>
   // dir/lang to the active locale while they are mounted via useApplyHtmlDir().
-  // Runs before hydration to set <html> lang/dir from the persisted locale
-  // (default "ar"), eliminating the first-paint flash of the wrong direction
-  // before useApplyHtmlDir() runs. React remains the ongoing source of truth.
-  const noFlashScript = `(function(){try{var l=localStorage.getItem('7jwzat-lang');if(l!=='en'&&l!=='ar')l='ar';var e=document.documentElement;e.lang=l;e.dir=l==='ar'?'rtl':'ltr';}catch(e){}})();`;
+  // Runs before hydration to set <html> lang/dir with NO first-paint flash.
+  // Resolution (must match LanguageProvider):
+  //   1. localStorage "7jwzat-lang" (explicit user choice) always wins.
+  //   2. else geo default: country from localStorage "7jwzat-geo-country"
+  //      (manual footer choice) else the "7jwzat-geo-country" cookie (Vercel geo,
+  //      set by middleware). AE → "en"; everything else / unknown → "ar".
+  //   3. else "ar".
+  const noFlashScript = `(function(){try{var e=document.documentElement;var l=localStorage.getItem('7jwzat-lang');if(l!=='en'&&l!=='ar'){var c=localStorage.getItem('7jwzat-geo-country');if(!c){var m=document.cookie.match(/(?:^|; )7jwzat-geo-country=([^;]+)/);c=m?decodeURIComponent(m[1]):'';}l=(c==='AE')?'en':'ar';}e.lang=l;e.dir=l==='ar'?'rtl':'ltr';}catch(e){}})();`;
 
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning className={`${inter.variable} ${arabic.variable}`}>

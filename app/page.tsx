@@ -5,6 +5,8 @@ import { useState, useRef, useCallback } from "react";
 import { Navbar } from "@/components/Navbar";
 import { RevealOnScroll } from "@/components/RevealOnScroll";
 import { useLanguage, useApplyHtmlDir } from "@/lib/i18n/LanguageProvider";
+import { COUNTRIES } from "@/lib/currency";
+import { mockPrices, mockPriceLabel } from "@/lib/marketingMockup";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -142,7 +144,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Home() {
   useApplyHtmlDir(); // Arabic-first RTL by default; flips <html> dir/lang.
-  const { t, locale } = useLanguage();
+  const { t, locale, currency } = useLanguage();
+
+  // Hero mockup prices follow the detected/selected currency (cosmetic only).
+  const [mockHaircut, mockManicure] = mockPrices(currency);
 
   const [contactEmail, setContactEmail]   = useState("");
   const [contactSent, setContactSent]     = useState(false);
@@ -264,8 +269,8 @@ export default function Home() {
           <div className="hero-mock mt-16 max-w-sm mx-auto bg-white/5 border border-white/10 rounded-2xl p-6 text-start backdrop-blur-sm hover:bg-white/8 transition-colors duration-300">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">{t("m.hero.mock.title")}</p>
             <div className="space-y-3">
-              <div className="bg-white/10 rounded-lg px-4 py-3 text-sm text-slate-200 font-medium hover:bg-white/15 transition-colors duration-200 cursor-default">{t("m.hero.mock.item1")}</div>
-              <div className="bg-white/10 rounded-lg px-4 py-3 text-sm text-slate-200 font-medium hover:bg-white/15 transition-colors duration-200 cursor-default">{t("m.hero.mock.item2")}</div>
+              <div className="bg-white/10 rounded-lg px-4 py-3 text-sm text-slate-200 font-medium hover:bg-white/15 transition-colors duration-200 cursor-default">✂️ {t("m.hero.mock.svc1")} — {t("m.hero.mock.dur1")} — {mockPriceLabel(mockHaircut, currency, locale)}</div>
+              <div className="bg-white/10 rounded-lg px-4 py-3 text-sm text-slate-200 font-medium hover:bg-white/15 transition-colors duration-200 cursor-default">💅 {t("m.hero.mock.svc2")} — {t("m.hero.mock.dur2")} — {mockPriceLabel(mockManicure, currency, locale)}</div>
               <div className="bg-emerald-500/20 border border-emerald-500/40 rounded-lg px-4 py-3 text-sm text-emerald-300 font-medium">{t("m.hero.mock.selected")}</div>
             </div>
             <div className="mt-4 bg-emerald-500 text-slate-900 text-sm font-bold text-center py-2.5 rounded-lg hover:bg-emerald-400 transition-colors duration-200 cursor-default">
@@ -463,9 +468,12 @@ export default function Home() {
                 <Link href="/terms"      className="hover:text-slate-300 transition-colors">{t("m.footer.terms")}</Link>
                 <a href="mailto:support@7jwzat.com" className="hover:text-slate-300 transition-colors">{t("m.footer.contact")}</a>
                 <Link href="/auth/login" className="hover:text-slate-300 transition-colors">{t("m.footer.signIn")}</Link>
-                <LanguageToggleFooter />
               </nav>
             </div>
+
+            {/* Language / Country / Currency selector */}
+            <FooterGeoSelector />
+
             <div className="border-t border-slate-900 mt-8 pt-8 text-center text-xs text-slate-700">
               {t("m.footer.rights")}
             </div>
@@ -476,27 +484,72 @@ export default function Home() {
   );
 }
 
-// Footer toggle styled for the dark background.
-function LanguageToggleFooter() {
-  const { locale, setLocale } = useLanguage();
+// Currencies offered in the footer selector (from the app's country map).
+const CURRENCY_CODES = ["JOD", "AED", "SAR", "KWD", "QAR", "BHD", "OMR", "EGP", "USD"];
+
+// Fuller footer control: Language pill + Country + Currency. Choices persist
+// and win over geo detection on the next visit (see LanguageProvider).
+function FooterGeoSelector() {
+  const { t, locale, setLocale, country, setCountry, currency, setCurrency } = useLanguage();
+
+  const selectClass =
+    "bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-1.5 text-sm " +
+    "focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer";
+
   return (
-    <div className="inline-flex items-center rounded-full border border-slate-700 overflow-hidden text-xs font-semibold">
-      <button
-        type="button"
-        onClick={() => setLocale("ar")}
-        className={`px-3 py-1 transition ${locale === "ar" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
-        aria-pressed={locale === "ar"}
-      >
-        AR
-      </button>
-      <button
-        type="button"
-        onClick={() => setLocale("en")}
-        className={`px-3 py-1 transition ${locale === "en" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
-        aria-pressed={locale === "en"}
-      >
-        EN
-      </button>
+    <div className="mt-8 flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-center gap-x-8 gap-y-4 text-slate-400">
+      {/* Language */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs uppercase tracking-wide text-slate-500">{t("m.footer.language")}</span>
+        <div className="inline-flex items-center rounded-full border border-slate-700 overflow-hidden text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => setLocale("ar")}
+            className={`px-3 py-1 transition ${locale === "ar" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
+            aria-pressed={locale === "ar"}
+          >
+            AR
+          </button>
+          <button
+            type="button"
+            onClick={() => setLocale("en")}
+            className={`px-3 py-1 transition ${locale === "en" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
+            aria-pressed={locale === "en"}
+          >
+            EN
+          </button>
+        </div>
+      </div>
+
+      {/* Country / Region */}
+      <label className="flex items-center gap-2">
+        <span className="text-xs uppercase tracking-wide text-slate-500">{t("m.footer.region")}</span>
+        <select
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          className={selectClass}
+          aria-label={t("m.footer.region")}
+        >
+          {COUNTRIES.map((c) => (
+            <option key={c.code} value={c.code}>{t(`m.country.${c.code}`)}</option>
+          ))}
+        </select>
+      </label>
+
+      {/* Currency */}
+      <label className="flex items-center gap-2">
+        <span className="text-xs uppercase tracking-wide text-slate-500">{t("m.footer.currency")}</span>
+        <select
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+          className={selectClass}
+          aria-label={t("m.footer.currency")}
+        >
+          {CURRENCY_CODES.map((cur) => (
+            <option key={cur} value={cur}>{cur}</option>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }
