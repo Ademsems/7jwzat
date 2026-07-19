@@ -107,6 +107,9 @@ export const ar: Record<string, string> = {
   "nav.settings": "الإعدادات",
   "nav.logout": "تسجيل الخروج",
   "nav.tagline": "نظام الحجز",
+  "nav.group.calendar": "التقويم والتوفّر", // PLACEHOLDER ARABIC — pending founder review
+  "nav.group.setup": "الإعداد", // PLACEHOLDER ARABIC — pending founder review
+  "nav.group.insights": "الإحصاءات", // PLACEHOLDER ARABIC — pending founder review
 
   // Common dashboard
   "d.save": "حفظ",
@@ -623,4 +626,44 @@ export const ar: Record<string, string> = {
   "m.country.OM": "عُمان",
   "m.country.EG": "مصر",
   "m.country.OTHER": "أخرى",
+
+  // ── Task 1: Optional pricing ── // PLACEHOLDER ARABIC — pending founder review
+  "services.priceOnRequest": "السعر عند الطلب",
+  "services.priceHint": "اتركه فارغاً لعرض «السعر عند الطلب» بدلاً من سعر محدد.",
+
+  // ── Task 3: Business address ── // PLACEHOLDER ARABIC — pending founder review
+  "settings.address": "العنوان",
+  "settings.addressPlaceholder": "مثال: شارع المدينة المنورة 34، عمّان",
+  "settings.addressHint": "اختياري. يظهر في صفحة حجزك ليعرف العملاء مكانك. اتركه فارغاً إذا كنت تقدم خدمات منزلية أو عبر الإنترنت.",
+  "book.location": "الموقع",
+  "book.viewOnMap": "عرض على الخريطة",
+
+  // ── Task 2: InfoTooltip — page headings ── // PLACEHOLDER ARABIC — pending founder review
+  "tip.page.dashboard": "نظرة عامة على نشاط اليوم، ورابط الحجز، وروابط سريعة لأهم الأقسام.",
+  "tip.page.analytics": "رسوم بيانية وإحصاءات تعرض الحجوزات والإيرادات واتجاهات العملاء خلال فترة محددة.",
+  "tip.page.services": "أدر الخدمات التي تقدمها — الاسم والمدة والسعر ونوع الجلسة.",
+  "tip.page.customFields": "أسئلة إضافية تضيفها إلى نموذج الحجز يجيب عليها العملاء قبل التأكيد.",
+  "tip.page.sessions": "أوقات مجدولة للخدمات الجماعية يمكن لعدة عملاء الانضمام إليها معاً.",
+  "tip.page.staff": "أدر أفراد فريقك والخدمات التي يستطيع كل شخص تقديمها.",
+  "tip.page.customers": "قائمة بجميع من حجزوا معك. تُنشأ الملفات الشخصية تلقائياً بعد أول حجز.",
+  "tip.page.businessHours": "الأيام والأوقات التي يمكن للعملاء حجز مواعيد معك فيها.",
+  "tip.page.bookings": "جميع مواعيدك وحجوزاتك في قائمة واحدة — حدّث الحالة أو أضف مدخلات يدوية.",
+  "tip.page.settings": "تفاصيل حسابك ورابط الحجز وإعدادات الموقع والعملة وكلمة المرور.",
+
+  // ── Task 2: InfoTooltip — field labels ── // PLACEHOLDER ARABIC — pending founder review
+  "tip.services.duration": "مدة تقديم هذه الخدمة بالدقائق. تحدد كم موعداً يتسع له يوم العمل.",
+  "tip.services.price": "اتركه فارغاً لعرض «السعر عند الطلب» للعملاء بدلاً من رقم محدد.",
+  "tip.services.sessionType": "فردي: عميل واحد لكل موعد. جماعي: عدة عملاء ينضمون إلى جلسة مجدولة.",
+  "tip.cf.required": "الحقول الإلزامية يجب أن يملأها العميل قبل إرسال نموذج الحجز.",
+  "tip.cf.applyTo": "طبّق على جميع الخدمات، أو اختر خدمات محددة يظهر عليها هذا السؤال.",
+  "tip.sess.capacity": "الحد الأقصى لعدد العملاء الذين يمكنهم الانضمام إلى هذه الجلسة.",
+  "tip.staff.canPerform": "فقط الخدمات المحددة ستعرض هذا الموظف كخيار عند حجز العملاء.",
+  "tip.staff.active": "الموظف غير النشط مخفي عن العملاء ولا يمكن اختياره عند الحجز.",
+  "tip.hours.openClosed": "مفتوح: يُقبل الحجز في هذا اليوم. مغلق: لا حجوزات في هذا اليوم.",
+  "tip.settings.country": "تحدد دولتك لأغراض التنسيق. لا يغيّر عملتك تلقائياً.",
+  "tip.settings.currency": "العملة المعروضة للعملاء في صفحة حجزك ورسائل التأكيد.",
+  "tip.settings.whatsapp": "رقم واتساب الخاص بك، يظهر كزر تواصل في صفحة حجزك العامة.",
+  "tip.settings.address": "موقعك يظهر في صفحة الحجز ليعرف العملاء أين يجدونك.",
+  "tip.nb.internalNote": "يظهر لك فقط في لوحة التحكم — العملاء لا يرون هذه الملاحظة أبداً.",
+  "tip.nb.blockVsManual": "حجب: يجعل الوقت غير متاح. يدوي: يضيف حجزاً حقيقياً لعميل معروف.",
 };

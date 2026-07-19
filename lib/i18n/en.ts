@@ -106,6 +106,9 @@ export const en: Record<string, string> = {
   "nav.settings": "Settings",
   "nav.logout": "Logout",
   "nav.tagline": "Booking System",
+  "nav.group.calendar": "Calendar & Availability",
+  "nav.group.setup": "Setup",
+  "nav.group.insights": "Insights",
 
   // Common dashboard
   "d.save": "Save",
@@ -622,4 +625,44 @@ export const en: Record<string, string> = {
   "m.country.OM": "Oman",
   "m.country.EG": "Egypt",
   "m.country.OTHER": "Other",
+
+  // ── Task 1: Optional pricing ──
+  "services.priceOnRequest": "Price on request",
+  "services.priceHint": "Leave empty to show \"Price on request\" instead of a fixed price.",
+
+  // ── Task 3: Business address ──
+  "settings.address": "Address",
+  "settings.addressPlaceholder": "e.g. 34 Al-Madinah Al-Munawwarah St, Amman",
+  "settings.addressHint": "Optional. Shown on your booking page so customers can find you. Leave empty for home-service or online businesses.",
+  "book.location": "Location",
+  "book.viewOnMap": "View on map",
+
+  // ── Task 2: InfoTooltip — page headings ──
+  "tip.page.dashboard": "An overview of today's activity, your booking link, and quick access to key sections.",
+  "tip.page.analytics": "Charts and stats showing bookings, revenue, and customer trends over the selected period.",
+  "tip.page.services": "Manage the services you offer — name, duration, price, and whether sessions are individual or group.",
+  "tip.page.customFields": "Extra questions added to the booking form, answered by customers before they confirm.",
+  "tip.page.sessions": "Scheduled time slots for group services that multiple customers can join, like a class or workshop.",
+  "tip.page.staff": "Manage your team members and the services each person can perform.",
+  "tip.page.customers": "Everyone who has booked with you. Profiles are created automatically after the first booking.",
+  "tip.page.businessHours": "The days and times customers can book appointments with you.",
+  "tip.page.bookings": "All appointments and bookings in one list — update status, view details, or add entries manually.",
+  "tip.page.settings": "Your account details, booking link, localization settings, and password.",
+
+  // ── Task 2: InfoTooltip — field labels ──
+  "tip.services.duration": "How long this service takes in minutes. Determines how many appointments fit in a working day.",
+  "tip.services.price": "Leave empty to show \"Price on request\" to customers instead of a fixed number.",
+  "tip.services.sessionType": "One-on-one: one customer per slot. Group: multiple customers join the same scheduled session.",
+  "tip.cf.required": "Required fields must be filled in before the customer can submit their booking form.",
+  "tip.cf.applyTo": "Apply to all services, or choose specific services this question should appear on.",
+  "tip.sess.capacity": "The maximum number of customers who can join this session.",
+  "tip.staff.canPerform": "Only the selected services will show this team member as a booking option.",
+  "tip.staff.active": "Inactive staff are hidden from customers and cannot be chosen during booking.",
+  "tip.hours.openClosed": "Open: bookings accepted on this day. Closed: no bookings allowed on this day.",
+  "tip.settings.country": "Sets your country for formatting purposes. Does not automatically change your currency.",
+  "tip.settings.currency": "The currency shown to customers on your booking page and in confirmation emails.",
+  "tip.settings.whatsapp": "Your WhatsApp number, shown as a contact button on your public booking page.",
+  "tip.settings.address": "Your location shown on the booking page so customers know where to find you.",
+  "tip.nb.internalNote": "Only visible to you in the dashboard — customers never see this note.",
+  "tip.nb.blockVsManual": "Block: marks time unavailable so no one can book it. Manual: adds a real booking for a known customer.",
 };
