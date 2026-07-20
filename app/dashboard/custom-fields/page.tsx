@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 /* ─── Types ──────────────────────────────────────────────── */
 interface Service { id: string; name: string; }
@@ -196,7 +197,7 @@ export default function CustomFieldsPage() {
 
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-3xl">
-      <h2 className="text-2xl font-bold text-gray-800 mb-1">{t("cf.title")}</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-1 inline-flex items-center gap-2">{t("cf.title")} <InfoTooltip textKey="tip.page.customFields" /></h2>
       <p className="text-gray-500 text-sm mb-8">
         {t("cf.subtitle")}
       </p>
@@ -249,6 +250,7 @@ export default function CustomFieldsPage() {
 
           {/* Required toggle */}
           <div className="flex items-center gap-3">
+            <InfoTooltip textKey="tip.cf.required" />
             <button
               type="button"
               onClick={() => setForm(f => ({ ...f, is_required: !f.is_required }))}
@@ -265,6 +267,7 @@ export default function CustomFieldsPage() {
 
           {/* Apply-to-all toggle */}
           <div className="flex items-center gap-3">
+            <InfoTooltip textKey="tip.cf.applyTo" />
             <button
               type="button"
               onClick={() => setForm(f => ({ ...f, apply_to_all: !f.apply_to_all, service_ids: [] }))}

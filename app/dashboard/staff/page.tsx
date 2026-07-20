@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 interface Service   { id: string; name: string; }
 interface StaffMember {
@@ -178,7 +179,7 @@ export default function StaffPage() {
 
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-4xl">
-      <h2 className="text-2xl font-bold text-gray-800 mb-1">{t("staff.title")}</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-1 inline-flex items-center gap-2">{t("staff.title")} <InfoTooltip textKey="tip.page.staff" /></h2>
       <p className="text-gray-500 text-sm mb-8">{t("staff.subtitle")}</p>
 
       {/* ── Add / Edit form ───────────────────────────────────── */}
@@ -231,8 +232,8 @@ export default function StaffPage() {
 
           {services.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t("staff.canPerform")}
+              <label className="block text-sm font-medium text-gray-700 mb-2 inline-flex items-center gap-1">
+                {t("staff.canPerform")} <InfoTooltip textKey="tip.staff.canPerform" />
               </label>
               <div className="flex flex-wrap gap-2">
                 {services.map(svc => {
@@ -304,6 +305,7 @@ export default function StaffPage() {
                       : "bg-gray-100 text-gray-500 border-gray-200"}`}>
                     {member.is_active ? t("staff.active") : t("staff.inactive")}
                   </span>
+                  <InfoTooltip textKey="tip.staff.active" />
                 </div>
 
                 {member.bio && (

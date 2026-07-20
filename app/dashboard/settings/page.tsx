@@ -9,6 +9,7 @@ import { showToast } from "@/components/Toast";
 import { QRCodeCard } from "@/components/QRCodeCard";
 import { COUNTRIES, DEFAULT_COUNTRY, DEFAULT_CURRENCY } from "@/lib/currency";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 interface Profile {
   id?: string;
@@ -19,6 +20,7 @@ interface Profile {
   country?: string | null;
   currency?: string | null;
   whatsapp_number?: string | null;
+  address?: string | null;
 }
 
 // Unique currency options (from the country map).
@@ -54,7 +56,7 @@ export default function SettingsPage() {
 
   // Localization & contact editing
   const [editingBiz, setEditingBiz] = useState(false);
-  const [bizForm, setBizForm]       = useState({ country: DEFAULT_COUNTRY, currency: DEFAULT_CURRENCY, whatsapp: "" });
+  const [bizForm, setBizForm]       = useState({ country: DEFAULT_COUNTRY, currency: DEFAULT_CURRENCY, whatsapp: "", address: "" });
   const [bizSaving, setBizSaving]   = useState(false);
 
   useEffect(() => {
@@ -68,6 +70,7 @@ export default function SettingsPage() {
         country:  prof.country  ?? DEFAULT_COUNTRY,
         currency: prof.currency ?? DEFAULT_CURRENCY,
         whatsapp: prof.whatsapp_number ?? "",
+        address:  prof.address ?? "",
       });
       setLoading(false);
     }
@@ -79,15 +82,16 @@ export default function SettingsPage() {
     setBizSaving(true);
     const whatsapp = normalizeWhatsapp(bizForm.whatsapp);
     // Changing country does NOT auto-change currency (currency edited independently).
+    const address = bizForm.address.trim() || null;
     const { error } = await supabase
       .from("users")
-      .update({ country: bizForm.country, currency: bizForm.currency, whatsapp_number: whatsapp || null })
+      .update({ country: bizForm.country, currency: bizForm.currency, whatsapp_number: whatsapp || null, address })
       .eq("id", profile.id);
     if (error) {
       showToast(error.message);
     } else {
-      setProfile(p => p ? { ...p, country: bizForm.country, currency: bizForm.currency, whatsapp_number: whatsapp || null } : p);
-      setBizForm(f => ({ ...f, whatsapp }));
+      setProfile(p => p ? { ...p, country: bizForm.country, currency: bizForm.currency, whatsapp_number: whatsapp || null, address } : p);
+      setBizForm(f => ({ ...f, whatsapp, address: address ?? "" }));
       setEditingBiz(false);
       showToast(t("settings.saved"));
     }
@@ -136,7 +140,10 @@ export default function SettingsPage() {
 
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-2xl">
-      <h2 className="text-2xl font-bold text-gray-800 mb-1">{t("settings.title")}</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-1 inline-flex items-center gap-2">
+        {t("settings.title")}
+        <InfoTooltip textKey="tip.page.settings" />
+      </h2>
       <p className="text-gray-500 text-sm mb-8">{t("settings.subtitle")}</p>
 
       {/* Business Info */}
@@ -173,11 +180,19 @@ export default function SettingsPage() {
                 ? <span dir="ltr">+{profile.whatsapp_number}</span>
                 : <span className="text-gray-300 italic">{t("settings.notSet")}</span>}
             />
+            <Row
+              label={t("settings.address")}
+              value={profile?.address
+                ? <span className="whitespace-pre-line">{profile.address}</span>
+                : <span className="text-gray-300 italic">{t("settings.notSet")}</span>}
+            />
           </>
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t("settings.country")}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-1">
+                {t("settings.country")} <InfoTooltip textKey="tip.settings.country" />
+              </label>
               <select
                 value={bizForm.country}
                 onChange={e => setBizForm(f => ({ ...f, country: e.target.value }))}
@@ -187,7 +202,9 @@ export default function SettingsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t("settings.currency")}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-1">
+                {t("settings.currency")} <InfoTooltip textKey="tip.settings.currency" />
+              </label>
               <select
                 value={bizForm.currency}
                 onChange={e => setBizForm(f => ({ ...f, currency: e.target.value }))}
@@ -198,7 +215,9 @@ export default function SettingsPage() {
               <p className="text-xs text-gray-400 mt-1">{t("settings.currencyHint")}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t("settings.whatsappNumber")}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-1">
+                {t("settings.whatsappNumber")} <InfoTooltip textKey="tip.settings.whatsapp" />
+              </label>
               <input
                 type="tel"
                 dir="ltr"
@@ -208,6 +227,20 @@ export default function SettingsPage() {
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
               <p className="text-xs text-gray-400 mt-1">{t("settings.whatsappHint")}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-1">
+                {t("settings.address")} <span className="text-gray-400 font-normal text-xs">{t("d.optional")}</span>
+                <InfoTooltip textKey="tip.settings.address" />
+              </label>
+              <textarea
+                rows={3}
+                value={bizForm.address}
+                onChange={e => setBizForm(f => ({ ...f, address: e.target.value }))}
+                placeholder={t("settings.addressPlaceholder")}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              />
+              <p className="text-xs text-gray-400 mt-1">{t("settings.addressHint")}</p>
             </div>
             <div className="flex gap-3">
               <button
@@ -224,6 +257,7 @@ export default function SettingsPage() {
                     country:  profile?.country  ?? DEFAULT_COUNTRY,
                     currency: profile?.currency ?? DEFAULT_CURRENCY,
                     whatsapp: profile?.whatsapp_number ?? "",
+                    address:  profile?.address ?? "",
                   });
                 }}
                 className="px-6 py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-600 hover:bg-gray-50 transition"

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 interface Service { id: string; name: string; }
 
@@ -168,12 +169,13 @@ export default function NewBookingPage() {
     <main className="flex-1 p-4 sm:p-8 max-w-xl">
       <div className="mb-6">
         <Link href="/dashboard/bookings" className="text-sm text-emerald-600 hover:underline">{t("nb.back")}</Link>
-        <h2 className="text-2xl font-bold text-gray-800 mt-2">{t("nb.title")}</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mt-2 inline-flex items-center gap-2">{t("nb.title")} <InfoTooltip textKey="tip.page.bookings" /></h2>
         <p className="text-gray-500 text-sm mt-1">{t("nb.subtitle")}</p>
       </div>
 
       {/* Mode switcher */}
-      <div className="flex rounded-xl border border-gray-200 overflow-hidden mb-6 bg-gray-50">
+      <div className="flex items-center gap-2 mb-6">
+      <div className="flex rounded-xl border border-gray-200 overflow-hidden flex-1 bg-gray-50">
         <button
           type="button"
           onClick={() => setMode("blocked")}
@@ -192,6 +194,8 @@ export default function NewBookingPage() {
         >
           &#128203; {t("nb.addManual")}
         </button>
+      </div>
+      <InfoTooltip textKey="tip.nb.blockVsManual" />
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-5">
@@ -294,8 +298,9 @@ export default function NewBookingPage() {
 
         {/* Internal note */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-1">
             {mode === "blocked" ? t("nb.reasonLabel") : t("nb.howMadeLabel")}
+            <InfoTooltip textKey="tip.nb.internalNote" />
           </label>
           <input
             type="text"

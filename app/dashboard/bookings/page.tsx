@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { formatDateLocale } from "@/lib/i18n/format";
 
 type Status = "pending" | "confirmed" | "completed" | "cancelled";
@@ -168,7 +169,7 @@ export default function BookingsPage() {
     <main className="flex-1 p-4 sm:p-8 min-w-0">
       <div className="flex items-start justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">{t("bk.title")}</h2>
+          <h2 className="text-2xl font-bold text-gray-800 inline-flex items-center gap-2">{t("bk.title")} <InfoTooltip textKey="tip.page.bookings" /></h2>
           <p className="text-gray-500 text-sm mt-1">{t("bk.subtitle")}</p>
         </div>
         <Link

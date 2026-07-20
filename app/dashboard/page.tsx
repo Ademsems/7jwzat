@@ -9,6 +9,7 @@ import { showToast } from "@/components/Toast";
 import { QRCodeCard } from "@/components/QRCodeCard";
 import { formatPrice, DEFAULT_CURRENCY } from "@/lib/currency";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 interface UserProfile {
   email: string;
@@ -112,7 +113,7 @@ export default function DashboardPage() {
   return (
     <main className="flex-1 p-4 sm:p-8">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-800">{t("dash.welcome")} {profile?.business_name}</h2>
+        <h2 className="text-2xl font-bold text-gray-800 inline-flex items-center gap-2">{t("dash.welcome")} {profile?.business_name} <InfoTooltip textKey="tip.page.dashboard" /></h2>
         <p className="text-gray-500 text-sm mt-1">{getWelcomeTag(profile?.business_type)}</p>
       </div>
 

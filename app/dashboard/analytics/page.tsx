@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type RangeKey = "this-month" | "last-month" | "last-3-months" | "last-6-months";
@@ -596,7 +597,7 @@ export default function AnalyticsPage() {
       {/* ── Header + date range toggle ── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">{t("an.title")}</h2>
+          <h2 className="text-2xl font-bold text-gray-800 inline-flex items-center gap-2">{t("an.title")} <InfoTooltip textKey="tip.page.analytics" /></h2>
           <p className="text-gray-500 text-sm mt-1">{t("an.subtitle")}</p>
         </div>
         <div className="flex flex-wrap gap-2">

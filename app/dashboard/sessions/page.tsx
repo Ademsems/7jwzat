@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { formatDateLocale, formatTimeLocale } from "@/lib/i18n/format";
 
 interface GroupService { id: string; name: string; }
@@ -163,7 +164,7 @@ export default function SessionsPage() {
     <main className="flex-1 p-4 sm:p-8 max-w-3xl">
       <div className="flex items-start justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">{t("sess.title")}</h2>
+          <h2 className="text-2xl font-bold text-gray-800 inline-flex items-center gap-2">{t("sess.title")} <InfoTooltip textKey="tip.page.sessions" /></h2>
           <p className="text-gray-500 text-sm mt-1">{t("sess.subtitle")}</p>
         </div>
         <button
@@ -221,7 +222,7 @@ export default function SessionsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t("sess.capacityLabel")}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-1">{t("sess.capacityLabel")} <InfoTooltip textKey="tip.sess.capacity" /></label>
               <input
                 type="number"
                 value={fCapacity}

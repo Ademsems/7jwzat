@@ -18,8 +18,8 @@ import { formatDateLocale, formatTimeLocale, type Locale } from "@/lib/i18n/form
  */
 
 /* ─── Types ──────────────────────────────────────────────── */
-interface Business   { id: string; business_name: string; email: string; currency?: string | null; whatsapp_number?: string | null; }
-interface Service    { id: string; name: string; duration: number; price: number; is_group_service: boolean; }
+interface Business   { id: string; business_name: string; email: string; currency?: string | null; whatsapp_number?: string | null; address?: string | null; }
+interface Service    { id: string; name: string; duration: number; price: number | null; is_group_service: boolean; }
 interface StaffMember { id: string; name: string; role: string | null; bio: string | null; }
 interface BusinessHour { day_of_week: number; start_time: string; end_time: string; }
 interface ExistingBooking { booking_date: string; booking_time: string; }
@@ -261,6 +261,8 @@ export default function BookPage({ params }: { params: { businessname: string } 
   const currency = business?.currency ?? DEFAULT_CURRENCY;
   const fmtDate = (s: string) => formatDateLocale(s, locale);
   const fmtTime = (t2: string) => formatTimeLocale(t2, locale);
+  const fmtPrice = (price: number | null | undefined) =>
+    price !== null && price !== undefined ? formatPrice(price, currency) : t("services.priceOnRequest");
 
   useEffect(() => { loadAll(); }, []);
 
@@ -395,7 +397,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
         customFieldAnswers,
         serviceName:     selectedService.name,
         duration:        selectedService.duration,
-        price:           Number(selectedService.price),
+        price:           selectedService.price,
         businessName:    business.business_name,
         ownerEmail:      business.email,
         currency,
@@ -455,7 +457,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">{t("book.confirm.price")}</span>
-              <span className="font-semibold text-indigo-600">{formatPrice(confirmedData.service.price, currency)}</span>
+              <span className="font-semibold text-indigo-600">{fmtPrice(confirmedData.service.price)}</span>
             </div>
             <div className="border-t border-indigo-100 pt-3 flex justify-between text-sm">
               <span className="text-gray-500">{t("book.confirm.date")}</span>
@@ -585,7 +587,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
                     </div>
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-sm text-gray-500">{svc.duration} {t("book.minutesShort")}</span>
-                      <span className="text-sm font-medium text-indigo-600">{formatPrice(svc.price, currency)}</span>
+                      <span className="text-sm font-medium text-indigo-600">{fmtPrice(svc.price)}</span>
                     </div>
                   </button>
                 ))}
@@ -731,7 +733,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
             {/* Summary bar */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-5 flex flex-wrap gap-x-6 gap-y-1 text-sm">
               <span><span className="text-gray-500">{t("book.summary.service")}</span> <strong>{selectedService!.name}</strong></span>
-              <span><span className="text-gray-500">{t("book.summary.price")}</span> <strong className="text-indigo-600">{formatPrice(selectedService!.price, currency)}</strong></span>
+              <span><span className="text-gray-500">{t("book.summary.price")}</span> <strong className="text-indigo-600">{fmtPrice(selectedService!.price)}</strong></span>
               {isGroupService && selectedSession
                 ? <>
                     <span><span className="text-gray-500">{t("book.summary.date")}</span> <strong>{fmtDate(selectedSession.session_date)}</strong></span>
@@ -826,6 +828,27 @@ export default function BookPage({ params }: { params: { businessname: string } 
                 {submitting ? t("book.submit.booking") : isGroupService ? t("book.submit.reserve") : t("book.submit.book")}
               </button>
             </form>
+          </section>
+        )}
+
+        {/* Location block — only rendered when the business has a non-empty address */}
+        {business!.address && (
+          <section className="pb-4">
+            <div className="bg-white rounded-xl shadow-sm p-5">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">{t("book.location")}</h2>
+              <p className="text-sm text-gray-700 mb-3 whitespace-pre-line">{business!.address}</p>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business!.address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-indigo-600 font-medium hover:underline"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                </svg>
+                {t("book.viewOnMap")}
+              </a>
+            </div>
           </section>
         )}
       </div>

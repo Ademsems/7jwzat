@@ -21,7 +21,7 @@ export async function sendCustomerEmail(opts: {
   customerEmail: string;
   serviceName: string;
   duration: number;
-  price: number;
+  price: number | null;
   bookingDate: string;
   bookingTime: string;
   businessName: string;
@@ -33,6 +33,9 @@ export async function sendCustomerEmail(opts: {
   const locale: Locale = opts.locale === "en" ? "en" : "ar";
   const currency = opts.currency || DEFAULT_CURRENCY;
   const dir = locale === "ar" ? "rtl" : "ltr";
+  const priceDisplay = price !== null && price !== undefined
+    ? formatPrice(price, currency)
+    : (locale === "ar" ? "السعر عند الطلب" : "Price on request");
 
   const html = `
 <!DOCTYPE html>
@@ -61,7 +64,7 @@ export async function sendCustomerEmail(opts: {
           </tr>
           <tr>
             <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("السعر", "Price")}</td>
-            <td style="color:#4f46e5;font-size:13px;font-weight:600;padding:6px 0">${formatPrice(price, currency)}</td>
+            <td style="color:#4f46e5;font-size:13px;font-weight:600;padding:6px 0">${priceDisplay}</td>
           </tr>
           <tr><td colspan="2" style="border-top:1px solid #ddd6fe;padding:4px 0"></td></tr>
           <tr>

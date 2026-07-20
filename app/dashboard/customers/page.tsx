@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 interface Customer {
   id: string;
@@ -100,7 +101,7 @@ export default function CustomersPage() {
     <main className="flex-1 p-4 sm:p-8 min-w-0">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">{t("cust.title")}</h2>
+          <h2 className="text-2xl font-bold text-gray-800 inline-flex items-center gap-2">{t("cust.title")} <InfoTooltip textKey="tip.page.customers" /></h2>
           <p className="text-gray-500 text-sm mt-1">
             {rows.length} {t("cust.total")}
           </p>

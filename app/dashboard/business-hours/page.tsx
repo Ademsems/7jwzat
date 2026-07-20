@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 // Sunday-first (Jordan work week). day_of_week uses JS getDay(): 0=Sun … 6=Sat.
 const DAYS = [0, 1, 2, 3, 4, 5, 6].map(index => ({ index }));
@@ -83,7 +84,7 @@ export default function BusinessHoursPage() {
 
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-2xl">
-      <h2 className="text-2xl font-bold text-gray-800 mb-2">{t("hours.title")}</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-2 inline-flex items-center gap-2">{t("hours.title")} <InfoTooltip textKey="tip.page.businessHours" /></h2>
       <p className="text-gray-500 text-sm mb-8">{t("hours.subtitle")}</p>
 
       <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-100 mb-6">
@@ -95,11 +96,14 @@ export default function BusinessHoursPage() {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-4 min-w-[160px]">
                   <span className="font-medium text-gray-800 w-24">{t(`day.${index}`)}</span>
-                  <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
-                    <button type="button" onClick={() => setDay(index, { open: true })}
-                      className={`px-3 py-1.5 font-medium transition ${day.open ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>{t("hours.open")}</button>
-                    <button type="button" onClick={() => setDay(index, { open: false })}
-                      className={`px-3 py-1.5 font-medium transition ${!day.open ? "bg-gray-700 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>{t("hours.closed")}</button>
+                  <div className="flex items-center gap-1">
+                    <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+                      <button type="button" onClick={() => setDay(index, { open: true })}
+                        className={`px-3 py-1.5 font-medium transition ${day.open ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>{t("hours.open")}</button>
+                      <button type="button" onClick={() => setDay(index, { open: false })}
+                        className={`px-3 py-1.5 font-medium transition ${!day.open ? "bg-gray-700 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>{t("hours.closed")}</button>
+                    </div>
+                    {index === 0 && <InfoTooltip textKey="tip.hours.openClosed" />}
                   </div>
                 </div>
                 {day.open ? (

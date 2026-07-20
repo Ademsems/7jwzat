@@ -6,12 +6,18 @@ import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 import { formatPrice, DEFAULT_CURRENCY } from "@/lib/currency";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
-interface Service { id: string; name: string; duration: number; price: number; is_group_service: boolean; }
+interface Service { id: string; name: string; duration: number; price: number | null; is_group_service: boolean; }
 const EMPTY = { name: "", duration: "", price: "", isGroup: false };
 
 function getErr(e: unknown) {
   return e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "Something went wrong.";
+}
+
+function displayPrice(price: number | null | undefined, currency: string, priceOnRequest: string): string {
+  if (price === null || price === undefined) return priceOnRequest;
+  return formatPrice(price, currency);
 }
 
 export default function ServicesPage() {
@@ -58,8 +64,9 @@ export default function ServicesPage() {
       if (n > 480) return "Maximum duration is 480 minutes (8 hours).";
     }
     if (field === "price") {
+      if (!val.trim()) return undefined; // empty = price on request, valid
       const n = Number(val);
-      if (!val || isNaN(n)) return "Price is required.";
+      if (isNaN(n)) return "Please enter a valid number.";
       if (n < 0) return "Price cannot be negative.";
       if (!/^\d+(\.\d{1,2})?$/.test(val)) return "Max 2 decimal places.";
     }
@@ -76,15 +83,16 @@ export default function ServicesPage() {
     const errs = {
       name:     validateField("name",     form.name),
       duration: validateField("duration", form.duration),
-      price:    validateField("price",    form.price),
+      price:    form.price.trim() ? validateField("price", form.price) : undefined,
     };
     setFieldErrors(errs);
     return !errs.name && !errs.duration && !errs.price;
   }
 
+  // Price is optional — only name + duration are required
   const isFormValid =
     !fieldErrors.name && !fieldErrors.duration && !fieldErrors.price &&
-    !!form.name.trim() && !!form.duration && !!form.price;
+    !!form.name.trim() && !!form.duration;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -93,7 +101,7 @@ export default function ServicesPage() {
     const payload = {
       name: form.name.trim(),
       duration: Number(form.duration),
-      price: Number(form.price),
+      price: form.price.trim() ? Number(form.price) : null,
       is_group_service: form.isGroup,
       user_id: userId,
     };
@@ -113,7 +121,7 @@ export default function ServicesPage() {
 
   function startEdit(svc: Service) {
     setEditingId(svc.id);
-    setForm({ name: svc.name, duration: String(svc.duration), price: String(svc.price), isGroup: svc.is_group_service });
+    setForm({ name: svc.name, duration: String(svc.duration), price: svc.price !== null && svc.price !== undefined ? String(svc.price) : "", isGroup: svc.is_group_service });
     setFieldErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -133,7 +141,10 @@ export default function ServicesPage() {
 
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-3xl">
-      <h2 className="text-2xl font-bold text-gray-800 mb-8">{t("services.title")}</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-8 inline-flex items-center gap-2">
+        {t("services.title")}
+        <InfoTooltip textKey="tip.page.services" />
+      </h2>
 
       {/* Form */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
@@ -154,7 +165,10 @@ export default function ServicesPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t("services.duration")}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-1">
+                {t("services.duration")}
+                <InfoTooltip textKey="tip.services.duration" />
+              </label>
               <input
                 type="number"
                 value={form.duration}
@@ -168,7 +182,10 @@ export default function ServicesPage() {
               {fieldErrors.duration && <p className="text-red-600 text-xs mt-1">{fieldErrors.duration}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t("services.price")} ({currency})</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-1">
+                {t("services.price")} ({currency}) <span className="text-gray-400 font-normal text-xs">{t("d.optional")}</span>
+                <InfoTooltip textKey="tip.services.price" />
+              </label>
               <input
                 type="number"
                 value={form.price}
@@ -178,13 +195,17 @@ export default function ServicesPage() {
                 step={0.01}
                 className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 ${fieldErrors.price ? "border-red-400 bg-red-50" : "border-gray-300"}`}
               />
+              <p className="text-xs text-gray-400 mt-1">{t("services.priceHint")}</p>
               {fieldErrors.price && <p className="text-red-600 text-xs mt-1">{fieldErrors.price}</p>}
             </div>
           </div>
 
           {/* Session type toggle */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t("services.sessionType")}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2 inline-flex items-center gap-1">
+              {t("services.sessionType")}
+              <InfoTooltip textKey="tip.services.sessionType" />
+            </label>
             <div className="flex rounded-xl border border-gray-200 overflow-hidden w-fit text-sm">
               <button
                 type="button"
@@ -251,7 +272,11 @@ export default function ServicesPage() {
                   <tr key={svc.id} className="hover:bg-gray-50 transition">
                     <td className="py-3 pr-4 font-medium text-gray-800">{svc.name}</td>
                     <td className="py-3 pr-4 text-gray-600">{svc.duration} {t("book.minutesShort")}</td>
-                    <td className="py-3 pr-4 text-gray-600">{formatPrice(svc.price, currency)}</td>
+                    <td className="py-3 pr-4 text-gray-600">
+                      {svc.price !== null && svc.price !== undefined
+                        ? formatPrice(svc.price, currency)
+                        : <span className="text-gray-400 italic">{t("services.priceOnRequest")}</span>}
+                    </td>
                     <td className="py-3 pr-4">
                       {svc.is_group_service ? (
                         <span className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full font-medium">
