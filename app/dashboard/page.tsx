@@ -198,6 +198,17 @@ export default function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* Temporary Sentry verification button — remove after confirming event in Sentry dashboard */}
+      <div className="mt-8">
+        <button
+          type="button"
+          onClick={() => { throw new Error("Sentry test — 7jwzat verification"); }}
+          className="text-xs text-gray-400 hover:text-red-500 underline"
+        >
+          Sentry test
+        </button>
+      </div>
     </main>
   );
 }
