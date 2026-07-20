@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 interface Service { id: string; name: string; }
 
@@ -41,6 +43,7 @@ function getErr(e: unknown) {
 
 export default function NewBookingPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [userId, setUserId] = useState<string | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [mode, setMode] = useState<Mode>("blocked");
@@ -75,9 +78,9 @@ export default function NewBookingPage() {
     if (!userId) return;
 
     if (mode === "manual") {
-      if (!customerName.trim()) { showToast("Customer name is required.", "error"); return; }
-      if (!customerPhone.trim()) { showToast("Customer phone is required.", "error"); return; }
-      if (!serviceId) { showToast("Please select a service.", "error"); return; }
+      if (!customerName.trim()) { showToast(t("nb.nameRequired"), "error"); return; }
+      if (!customerPhone.trim()) { showToast(t("nb.phoneRequired"), "error"); return; }
+      if (!serviceId) { showToast(t("nb.serviceRequired"), "error"); return; }
     }
 
     setSaving(true);
@@ -153,7 +156,7 @@ export default function NewBookingPage() {
       const { error } = await supabase.from("bookings").insert(payload);
       if (error) throw error;
 
-      showToast(mode === "blocked" ? "Time blocked successfully." : "Manual booking added.");
+      showToast(mode === "blocked" ? t("nb.blockedOk") : t("nb.manualOk"));
       router.push("/dashboard/bookings");
     } catch (err) {
       showToast(getErr(err), "error");
@@ -165,13 +168,14 @@ export default function NewBookingPage() {
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-xl">
       <div className="mb-6">
-        <Link href="/dashboard/bookings" className="text-sm text-emerald-600 hover:underline">&larr; Back to Bookings</Link>
-        <h2 className="text-2xl font-bold text-gray-800 mt-2">Add / Block</h2>
-        <p className="text-gray-500 text-sm mt-1">Block a time slot or manually add a booking.</p>
+        <Link href="/dashboard/bookings" className="text-sm text-emerald-600 hover:underline">{t("nb.back")}</Link>
+        <h2 className="text-2xl font-bold text-gray-800 mt-2 inline-flex items-center gap-2">{t("nb.title")} <InfoTooltip textKey="tip.page.bookings" /></h2>
+        <p className="text-gray-500 text-sm mt-1">{t("nb.subtitle")}</p>
       </div>
 
       {/* Mode switcher */}
-      <div className="flex rounded-xl border border-gray-200 overflow-hidden mb-6 bg-gray-50">
+      <div className="flex items-center gap-2 mb-6">
+      <div className="flex rounded-xl border border-gray-200 overflow-hidden flex-1 bg-gray-50">
         <button
           type="button"
           onClick={() => setMode("blocked")}
@@ -179,7 +183,7 @@ export default function NewBookingPage() {
             mode === "blocked" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
           }`}
         >
-          &#128683; Block Time
+          &#128683; {t("nb.blockTime")}
         </button>
         <button
           type="button"
@@ -188,15 +192,17 @@ export default function NewBookingPage() {
             mode === "manual" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
           }`}
         >
-          &#128203; Add Manual Booking
+          &#128203; {t("nb.addManual")}
         </button>
+      </div>
+      <InfoTooltip textKey="tip.nb.blockVsManual" />
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-5">
 
         {/* Date */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t("nb.date")}</label>
           <input
             type="date"
             value={date}
@@ -208,7 +214,7 @@ export default function NewBookingPage() {
 
         {/* Start Time */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t("nb.startTime")}</label>
           <select
             value={startTime}
             onChange={e => setStartTime(e.target.value)}
@@ -222,7 +228,7 @@ export default function NewBookingPage() {
 
         {/* Duration */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Duration</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">{t("nb.duration")}</label>
           <div className="flex flex-wrap gap-2">
             {DURATIONS.map(d => (
               <button
@@ -245,18 +251,18 @@ export default function NewBookingPage() {
         {mode === "manual" && (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("nb.service")}</label>
               <select
                 value={serviceId}
                 onChange={e => setServiceId(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
-                {services.length === 0 && <option value="">No services yet</option>}
+                {services.length === 0 && <option value="">{t("nb.noServices")}</option>}
                 {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("nb.customerName")} *</label>
               <input
                 type="text"
                 value={customerName}
@@ -266,18 +272,18 @@ export default function NewBookingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Customer Phone *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t("nb.customerPhone")} *</label>
               <input
                 type="tel"
                 value={customerPhone}
                 onChange={e => setCustomerPhone(e.target.value)}
-                placeholder="+971 50 123 4567"
+                placeholder="+962 7X XXX XXXX"
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Customer Email <span className="text-gray-400 font-normal">(optional)</span>
+                {t("nb.customerEmail")} <span className="text-gray-400 font-normal">{t("d.optional")}</span>
               </label>
               <input
                 type="email"
@@ -292,14 +298,15 @@ export default function NewBookingPage() {
 
         {/* Internal note */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {mode === "blocked" ? "Reason (only visible to you)" : "How was this booking made? (only visible to you)"}
+          <label className="block text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-1">
+            {mode === "blocked" ? t("nb.reasonLabel") : t("nb.howMadeLabel")}
+            <InfoTooltip textKey="tip.nb.internalNote" />
           </label>
           <input
             type="text"
             value={internalNote}
             onChange={e => setInternalNote(e.target.value)}
-            placeholder={mode === "blocked" ? "e.g. Staff lunch, Personal, Cleaning" : "e.g. WhatsApp, Phone call, Walk-in"}
+            placeholder={mode === "blocked" ? t("nb.reasonPlaceholder") : t("nb.howMadePlaceholder")}
             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
@@ -310,10 +317,10 @@ export default function NewBookingPage() {
           className="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-60 transition"
         >
           {saving
-            ? "Saving..."
+            ? t("d.saving")
             : mode === "blocked"
-            ? "Block This Time"
-            : "Add Booking"}
+            ? t("nb.blockBtn")
+            : t("nb.addBtn")}
         </button>
       </form>
     </main>

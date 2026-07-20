@@ -7,11 +7,15 @@ import { supabase } from "@/lib/supabase";
 import { bookingUrl } from "@/lib/slug";
 import { showToast } from "@/components/Toast";
 import { QRCodeCard } from "@/components/QRCodeCard";
+import { formatPrice, DEFAULT_CURRENCY } from "@/lib/currency";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 interface UserProfile {
   email: string;
   business_name: string;
   business_type?: string | null;
+  currency?: string | null;
 }
 interface Stats {
   totalBookings: number;
@@ -41,6 +45,7 @@ function getWelcomeTag(type?: string | null): string {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<Stats>({ totalBookings: 0, todayBookings: 0, serviceCount: 0, revenueMTD: 0 });
   const [loading, setLoading] = useState(true);
@@ -56,7 +61,7 @@ export default function DashboardPage() {
       const firstOfMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`;
 
       const [profileRes, totalRes, todayRes, svcRes, revenueRes] = await Promise.all([
-        supabase.from("users").select("email, business_name, business_type").eq("id", userId).single(),
+        supabase.from("users").select("email, business_name, business_type, currency").eq("id", userId).single(),
         supabase.from("bookings").select("*", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("bookings").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("booking_date", today),
         supabase.from("services").select("*", { count: "exact", head: true }).eq("user_id", userId),
@@ -86,7 +91,7 @@ export default function DashboardPage() {
     const url = bookingUrl(profile.business_name);
     await navigator.clipboard.writeText(url);
     setCopied(true);
-    showToast("Link copied to clipboard!");
+    showToast(t("dash.linkCopied"));
     setTimeout(() => setCopied(false), 2000);
   }
 
@@ -99,16 +104,16 @@ export default function DashboardPage() {
   const link = profile ? bookingUrl(profile.business_name) : "";
 
   const statCards = [
-    { label: "Total Bookings", value: String(stats.totalBookings) },
-    { label: "Today",          value: String(stats.todayBookings) },
-    { label: "Services",       value: String(stats.serviceCount) },
-    { label: "Revenue (MTD)",  value: `AED ${stats.revenueMTD.toFixed(2)}` },
+    { label: t("dash.stat.totalBookings"), value: String(stats.totalBookings) },
+    { label: t("dash.stat.today"),         value: String(stats.todayBookings) },
+    { label: t("dash.stat.services"),      value: String(stats.serviceCount) },
+    { label: t("dash.stat.revenue"),       value: formatPrice(stats.revenueMTD, profile?.currency ?? DEFAULT_CURRENCY) },
   ];
 
   return (
     <main className="flex-1 p-4 sm:p-8">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-800">Welcome, {profile?.business_name}</h2>
+        <h2 className="text-2xl font-bold text-gray-800 inline-flex items-center gap-2">{t("dash.welcome")} {profile?.business_name} <InfoTooltip textKey="tip.page.dashboard" /></h2>
         <p className="text-gray-500 text-sm mt-1">{getWelcomeTag(profile?.business_type)}</p>
       </div>
 
@@ -119,9 +124,9 @@ export default function DashboardPage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-lg">&#128279;</span>
-              <h3 className="font-semibold text-lg">Share Your Booking Link</h3>
+              <h3 className="font-semibold text-lg">{t("dash.share.title")}</h3>
             </div>
-            <p className="text-emerald-100 text-sm mb-4">Share this link with customers so they can book appointments.</p>
+            <p className="text-emerald-100 text-sm mb-4">{t("dash.share.desc")}</p>
             <div className="bg-white/15 rounded-xl px-4 py-2.5 text-sm font-mono truncate text-white/90">
               {link}
             </div>
@@ -134,7 +139,7 @@ export default function DashboardPage() {
               copied ? "bg-green-500 text-white" : "bg-white text-emerald-700 hover:bg-emerald-50"
             }`}
           >
-            {copied ? "Copied!" : "Copy Link"}
+            {copied ? t("dash.copied") : t("dash.copyLink")}
           </button>
           <a
             href={`https://wa.me/?text=${encodeURIComponent("Book your appointment here: " + link)}`}
@@ -169,27 +174,27 @@ export default function DashboardPage() {
       {/* Quick links */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="font-semibold text-gray-700 mb-2">Services</h3>
+          <h3 className="font-semibold text-gray-700 mb-2">{t("dash.quick.services")}</h3>
           <p className="text-sm text-gray-400">
-            <Link href="/dashboard/services" className="text-emerald-600 hover:underline">Manage your services &rarr;</Link>
+            <Link href="/dashboard/services" className="text-emerald-600 hover:underline">{t("dash.quick.servicesLink")}</Link>
           </p>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="font-semibold text-gray-700 mb-2">Business Hours</h3>
+          <h3 className="font-semibold text-gray-700 mb-2">{t("dash.quick.hours")}</h3>
           <p className="text-sm text-gray-400">
-            <Link href="/dashboard/business-hours" className="text-emerald-600 hover:underline">Set your working hours &rarr;</Link>
+            <Link href="/dashboard/business-hours" className="text-emerald-600 hover:underline">{t("dash.quick.hoursLink")}</Link>
           </p>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="font-semibold text-gray-700 mb-2">Recent Bookings</h3>
+          <h3 className="font-semibold text-gray-700 mb-2">{t("dash.quick.recent")}</h3>
           <p className="text-sm text-gray-400">
-            <Link href="/dashboard/bookings" className="text-emerald-600 hover:underline">View all bookings &rarr;</Link>
+            <Link href="/dashboard/bookings" className="text-emerald-600 hover:underline">{t("dash.quick.recentLink")}</Link>
           </p>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="font-semibold text-gray-700 mb-2">Settings</h3>
+          <h3 className="font-semibold text-gray-700 mb-2">{t("dash.quick.settings")}</h3>
           <p className="text-sm text-gray-400">
-            <Link href="/dashboard/settings" className="text-emerald-600 hover:underline">Profile &amp; account settings &rarr;</Link>
+            <Link href="/dashboard/settings" className="text-emerald-600 hover:underline">{t("dash.quick.settingsLink")}</Link>
           </p>
         </div>
       </div>

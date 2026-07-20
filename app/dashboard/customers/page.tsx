@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 interface Customer {
   id: string;
@@ -34,6 +36,7 @@ function fmtSince(ts: string | null): string | null {
 
 export default function CustomersPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [rows, setRows]       = useState<CustomerRow[]>([]);
   const [filtered, setFiltered] = useState<CustomerRow[]>([]);
   const [search, setSearch]   = useState("");
@@ -90,7 +93,7 @@ export default function CustomersPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">Loading...</p>
+      <p className="text-gray-500">{t("d.loading")}</p>
     </div>
   );
 
@@ -98,9 +101,9 @@ export default function CustomersPage() {
     <main className="flex-1 p-4 sm:p-8 min-w-0">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Customers</h2>
+          <h2 className="text-2xl font-bold text-gray-800 inline-flex items-center gap-2">{t("cust.title")} <InfoTooltip textKey="tip.page.customers" /></h2>
           <p className="text-gray-500 text-sm mt-1">
-            {rows.length} customer{rows.length !== 1 ? "s" : ""} total
+            {rows.length} {t("cust.total")}
           </p>
         </div>
       </div>
@@ -112,7 +115,7 @@ export default function CustomersPage() {
             type="search"
             value={search}
             onChange={e => handleSearch(e.target.value)}
-            placeholder="Search by name or phone..."
+            placeholder={t("cust.search")}
             className="w-full sm:max-w-sm border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
@@ -123,24 +126,24 @@ export default function CustomersPage() {
           <div className="p-12 text-center">
             <p className="text-4xl mb-3">&#128100;</p>
             <p className="text-gray-500 text-sm max-w-xs mx-auto">
-              No customers yet. Customers appear here automatically after their first booking.
+              {t("cust.empty")}
             </p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-gray-400 text-sm">No customers match &ldquo;{search}&rdquo;.</p>
+            <p className="text-gray-400 text-sm">&ldquo;{search}&rdquo;</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Name</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Phone</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Email</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Bookings</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Last Visit</th>
-                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4"></th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("cust.colName")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("cust.colPhone")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("cust.colEmail")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("cust.colBookings")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("cust.colLastVisit")}</th>
+                  <th className="text-end text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -149,7 +152,7 @@ export default function CustomersPage() {
                     <td className="px-6 py-4">
                       <p className="font-medium text-gray-800">{c.name}</p>
                       {fmtSince(c.created_at) && (
-                        <p className="text-xs text-gray-400 mt-0.5">Since {fmtSince(c.created_at)}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{t("cust.since")} {fmtSince(c.created_at)}</p>
                       )}
                     </td>
                     <td className="px-6 py-4 text-gray-600">{c.phone ?? <span className="text-gray-300 italic">—</span>}</td>
@@ -163,21 +166,21 @@ export default function CustomersPage() {
                     <td className="px-6 py-4 text-gray-600 text-sm">
                       {c.last_visit ? fmtDate(c.last_visit) : <span className="text-gray-300 italic">—</span>}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-end">
                       <Link
                         href={`/dashboard/customers/${c.id}`}
                         className="text-xs font-semibold text-emerald-700 border border-emerald-300 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition"
                       >
-                        View &rarr;
+                        {t("cust.view")}
                       </Link>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-right">
+            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-end">
               <span className="text-xs text-gray-400">
-                {filtered.length} of {rows.length} customer{rows.length !== 1 ? "s" : ""}
+                {filtered.length} / {rows.length}
               </span>
             </div>
           </div>

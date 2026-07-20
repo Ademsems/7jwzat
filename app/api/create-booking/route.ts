@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
     price,
     businessName,
     ownerEmail,
+    currency,
+    locale,
   } = body;
 
   if (!businessId || !serviceId || !customerName || !customerEmail || !customerPhone) {
@@ -207,6 +209,8 @@ export async function POST(req: NextRequest) {
       bookingTime,
       businessName,
       ownerEmail,
+      currency,
+      locale,
     }),
   }).catch(e => console.error("Email dispatch failed:", e));
 

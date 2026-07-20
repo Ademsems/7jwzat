@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
       serviceName, duration, price,
       bookingDate, bookingTime,
       businessName, ownerEmail,
+      currency, locale,
     } = body;
 
     // Fire both emails in parallel — don't let failures block response
@@ -16,10 +17,12 @@ export async function POST(req: NextRequest) {
       sendCustomerEmail({
         customerName, customerEmail, serviceName,
         duration, price, bookingDate, bookingTime, businessName,
+        currency, locale,
       }),
       sendOwnerEmail({
         ownerEmail, customerName, customerEmail, customerPhone, notes,
         serviceName, bookingDate, bookingTime, businessName,
+        locale,
       }),
     ]);
 

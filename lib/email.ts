@@ -1,4 +1,6 @@
-﻿import { Resend } from "resend";
+import { Resend } from "resend";
+import { formatPrice, DEFAULT_CURRENCY } from "@/lib/currency";
+import { formatDateLocale, formatTimeLocale, type Locale } from "@/lib/i18n/format";
 
 // Lazily create the client inside each function so this module can be
 // imported during Next.js build without RESEND_API_KEY being present.
@@ -8,76 +10,78 @@ function getResend() {
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? "noreply@resend.dev";
 
-function fmtDate(s: string) {
-  return new Date(s + "T00:00:00").toLocaleDateString("en-AE", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
-  });
+// Bilingual label: Arabic primary, small English underneath.
+function label(ar: string, en: string) {
+  return `${ar}<br><span style="color:#9ca3af;font-size:11px">${en}</span>`;
 }
 
-/* ── Customer confirmation ─────────────────────────────────────── */
+/* ── Customer confirmation (Arabic-first, bilingual) ───────────── */
 export async function sendCustomerEmail(opts: {
   customerName: string;
   customerEmail: string;
   serviceName: string;
   duration: number;
-  price: number;
+  price: number | null;
   bookingDate: string;
   bookingTime: string;
   businessName: string;
+  currency?: string | null;
+  locale?: Locale;
 }) {
   const { customerName, customerEmail, serviceName, duration, price,
           bookingDate, bookingTime, businessName } = opts;
+  const locale: Locale = opts.locale === "en" ? "en" : "ar";
+  const currency = opts.currency || DEFAULT_CURRENCY;
+  const dir = locale === "ar" ? "rtl" : "ltr";
+  const priceDisplay = price !== null && price !== undefined
+    ? formatPrice(price, currency)
+    : (locale === "ar" ? "السعر عند الطلب" : "Price on request");
 
   const html = `
 <!DOCTYPE html>
-<html>
+<html dir="${dir}" lang="${locale}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f9fafb;font-family:Arial,sans-serif">
-  <div style="max-width:520px;margin:40px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
-    <!-- Header -->
+<body style="margin:0;padding:0;background:#f9fafb;font-family:Arial,'Segoe UI',sans-serif">
+  <div style="max-width:520px;margin:40px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)" dir="${dir}">
     <div style="background:#4f46e5;padding:32px 40px;text-align:center">
       <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700">${businessName}</h1>
-      <p style="color:#c7d2fe;margin:8px 0 0;font-size:14px">Booking Confirmation</p>
+      <p style="color:#c7d2fe;margin:8px 0 0;font-size:14px">تأكيد الحجز<br><span style="font-size:12px">Booking Confirmation</span></p>
     </div>
-    <!-- Body -->
     <div style="padding:40px">
-      <p style="color:#374151;font-size:16px;margin:0 0 24px">Hi ${customerName},</p>
-      <p style="color:#374151;font-size:15px;margin:0 0 24px">
-        Your appointment has been confirmed! Here are your booking details:
-      </p>
-      <!-- Details box -->
+      <p style="color:#374151;font-size:16px;margin:0 0 8px">مرحباً ${customerName}،</p>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">Hi ${customerName},</p>
+      <p style="color:#374151;font-size:15px;margin:0 0 6px">تم تأكيد موعدك! إليك تفاصيل حجزك:</p>
+      <p style="color:#6b7280;font-size:12px;margin:0 0 24px">Your appointment has been confirmed. Here are your booking details:</p>
       <div style="background:#f5f3ff;border-radius:10px;padding:24px;margin-bottom:24px">
         <table style="width:100%;border-collapse:collapse">
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0;width:40%">Service</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0;width:45%">${label("الخدمة", "Service")}</td>
             <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${serviceName}</td>
           </tr>
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0">Duration</td>
-            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${duration} minutes</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("المدة", "Duration")}</td>
+            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${duration} ${locale === "ar" ? "دقيقة" : "minutes"}</td>
           </tr>
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0">Price</td>
-            <td style="color:#4f46e5;font-size:13px;font-weight:600;padding:6px 0">AED ${price.toFixed(2)}</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("السعر", "Price")}</td>
+            <td style="color:#4f46e5;font-size:13px;font-weight:600;padding:6px 0">${priceDisplay}</td>
           </tr>
           <tr><td colspan="2" style="border-top:1px solid #ddd6fe;padding:4px 0"></td></tr>
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0">Date</td>
-            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${fmtDate(bookingDate)}</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("التاريخ", "Date")}</td>
+            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${formatDateLocale(bookingDate, locale)}</td>
           </tr>
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0">Time</td>
-            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${bookingTime}</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("الوقت", "Time")}</td>
+            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${formatTimeLocale(bookingTime, locale)}</td>
           </tr>
         </table>
       </div>
-      <p style="color:#6b7280;font-size:13px;margin:0">
-        Please keep this email for your records. We look forward to seeing you!
-      </p>
+      <p style="color:#6b7280;font-size:13px;margin:0">يُرجى الاحتفاظ بهذا البريد. نتطلع لرؤيتك!</p>
+      <p style="color:#9ca3af;font-size:11px;margin:4px 0 0">Please keep this email for your records. We look forward to seeing you!</p>
     </div>
-    <!-- Footer -->
     <div style="background:#f9fafb;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb">
-      <p style="color:#9ca3af;font-size:12px;margin:0">Powered by 7jwzat &middot; Smart Booking System</p>
+      <p style="color:#9ca3af;font-size:12px;margin:0">Powered by 7jwzat &middot; نظام الحجز الذكي</p>
     </div>
   </div>
 </body>
@@ -86,12 +90,12 @@ export async function sendCustomerEmail(opts: {
   return getResend().emails.send({
     from: FROM,
     to: customerEmail,
-    subject: `Your Appointment is Confirmed - ${businessName}`,
+    subject: `تأكيد حجزك — Booking Confirmed · ${businessName}`,
     html,
   });
 }
 
-/* ── Business owner notification ───────────────────────────────── */
+/* ── Business owner notification (Arabic-first, bilingual) ─────── */
 export async function sendOwnerEmail(opts: {
   ownerEmail: string;
   customerName: string;
@@ -102,62 +106,66 @@ export async function sendOwnerEmail(opts: {
   bookingDate: string;
   bookingTime: string;
   businessName: string;
+  locale?: Locale;
 }) {
   const { ownerEmail, customerName, customerEmail, customerPhone, notes,
           serviceName, bookingDate, bookingTime, businessName } = opts;
+  const locale: Locale = opts.locale === "en" ? "en" : "ar";
+  const dir = locale === "ar" ? "rtl" : "ltr";
 
   const html = `
 <!DOCTYPE html>
-<html>
+<html dir="${dir}" lang="${locale}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f9fafb;font-family:Arial,sans-serif">
-  <div style="max-width:520px;margin:40px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+<body style="margin:0;padding:0;background:#f9fafb;font-family:Arial,'Segoe UI',sans-serif">
+  <div style="max-width:520px;margin:40px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)" dir="${dir}">
     <div style="background:#4f46e5;padding:32px 40px">
-      <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700">New Booking!</h1>
+      <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700">حجز جديد!<br><span style="font-size:13px;font-weight:400">New Booking!</span></h1>
       <p style="color:#c7d2fe;margin:8px 0 0;font-size:14px">${businessName}</p>
     </div>
     <div style="padding:40px">
-      <p style="color:#374151;font-size:15px;margin:0 0 24px">You have a new appointment booking:</p>
+      <p style="color:#374151;font-size:15px;margin:0 0 4px">لديك حجز موعد جديد:</p>
+      <p style="color:#9ca3af;font-size:12px;margin:0 0 24px">You have a new appointment booking:</p>
       <div style="background:#f5f3ff;border-radius:10px;padding:24px;margin-bottom:24px">
         <table style="width:100%;border-collapse:collapse">
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0;width:40%">Customer</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0;width:45%">${label("العميل", "Customer")}</td>
             <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${customerName}</td>
           </tr>
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0">Phone</td>
-            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${customerPhone}</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("الهاتف", "Phone")}</td>
+            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0" dir="ltr">${customerPhone}</td>
           </tr>
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0">Email</td>
-            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${customerEmail}</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("البريد", "Email")}</td>
+            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0" dir="ltr">${customerEmail}</td>
           </tr>
           <tr><td colspan="2" style="border-top:1px solid #ddd6fe;padding:4px 0"></td></tr>
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0">Service</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("الخدمة", "Service")}</td>
             <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${serviceName}</td>
           </tr>
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0">Date</td>
-            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${fmtDate(bookingDate)}</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("التاريخ", "Date")}</td>
+            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${formatDateLocale(bookingDate, locale)}</td>
           </tr>
           <tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0">Time</td>
-            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${bookingTime}</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("الوقت", "Time")}</td>
+            <td style="color:#111827;font-size:13px;font-weight:600;padding:6px 0">${formatTimeLocale(bookingTime, locale)}</td>
           </tr>
           ${notes ? `<tr>
-            <td style="color:#6b7280;font-size:13px;padding:6px 0">Notes</td>
+            <td style="color:#6b7280;font-size:13px;padding:6px 0">${label("ملاحظات", "Notes")}</td>
             <td style="color:#111827;font-size:13px;padding:6px 0">${notes}</td>
           </tr>` : ""}
         </table>
       </div>
       <a href="${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/dashboard/bookings"
          style="display:inline-block;background:#4f46e5;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
-        View in Dashboard
+        عرض في لوحة التحكم · View in Dashboard
       </a>
     </div>
     <div style="background:#f9fafb;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb">
-      <p style="color:#9ca3af;font-size:12px;margin:0">Powered by 7jwzat &middot; Smart Booking System</p>
+      <p style="color:#9ca3af;font-size:12px;margin:0">Powered by 7jwzat &middot; نظام الحجز الذكي</p>
     </div>
   </div>
 </body>
@@ -166,7 +174,7 @@ export async function sendOwnerEmail(opts: {
   return getResend().emails.send({
     from: FROM,
     to: ownerEmail,
-    subject: `New Booking: ${serviceName} from ${customerName}`,
+    subject: `حجز جديد — New Booking: ${serviceName} · ${customerName}`,
     html,
   });
 }

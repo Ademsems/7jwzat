@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type RangeKey = "this-month" | "last-month" | "last-3-months" | "last-6-months";
@@ -38,8 +40,8 @@ const RANGES: { key: RangeKey; label: string }[] = [
 ];
 
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const DOW_LABELS  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const DOW_JS      = [1, 2, 3, 4, 5, 6, 0]; // getDay() values for Mon → Sun
+const DOW_LABELS  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const DOW_JS      = [0, 1, 2, 3, 4, 5, 6]; // getDay() values, Sunday first (Jordan week)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function localDate(dt: Date): string {
@@ -57,8 +59,9 @@ function getDateRange(r: RangeKey): { start: string; end: string } {
   }
 }
 
-function fmtAED(n: number): string {
-  return "AED " + Math.round(n).toLocaleString("en-AE");
+let ACTIVE_CURRENCY = "JOD"; // set at render time from the business profile
+function fmtMoney(n: number): string {
+  return ACTIVE_CURRENCY + " " + Math.round(n).toLocaleString("en-US");
 }
 
 function fmtHour(h: number): string {
@@ -124,7 +127,7 @@ function BarChart({ bars }: { bars: { label: string; value: number }[] }) {
         {/* Max label */}
         <div className="flex justify-between items-center mb-1 px-1">
           <span className="text-xs text-gray-400">0</span>
-          <span className="text-xs text-gray-400">{fmtAED(max)}</span>
+          <span className="text-xs text-gray-400">{fmtMoney(max)}</span>
         </div>
         {/* Bar area */}
         <div className="relative flex items-end gap-1 h-48 border-b border-l border-gray-100">
@@ -136,7 +139,7 @@ function BarChart({ bars }: { bars: { label: string; value: number }[] }) {
               {bar.value > 0 && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover:opacity-100 pointer-events-none transition z-20">
                   <div className="bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap shadow-lg">
-                    {fmtAED(bar.value)}
+                    {fmtMoney(bar.value)}
                   </div>
                 </div>
               )}
@@ -256,7 +259,7 @@ function TopList({ items, emptyMsg }: { items: TopItem[]; emptyMsg: string }) {
               {item.count} booking{item.count !== 1 ? "s" : ""}
             </span>
             <span className="text-xs text-gray-400 shrink-0 w-24 text-right hidden sm:block">
-              {fmtAED(item.revenue)}
+              {fmtMoney(item.revenue)}
             </span>
           </div>
         </div>
@@ -288,10 +291,10 @@ function HourBars({ items }: { items: { label: string; count: number }[] }) {
 }
 
 // ── New vs Returning ──────────────────────────────────────────────────────────
-function NewReturning({ newCount, retCount }: { newCount: number; retCount: number }) {
+function NewReturning({ newCount, retCount, newLabel, retLabel, ofCustomers, emptyMsg }: { newCount: number; retCount: number; newLabel: string; retLabel: string; ofCustomers: string; emptyMsg: string }) {
   const total = newCount + retCount;
   if (total === 0) {
-    return <p className="text-gray-400 text-sm text-center py-6">No customer data for this period.</p>;
+    return <p className="text-gray-400 text-sm text-center py-6">{emptyMsg}</p>;
   }
   const newPct = Math.round((newCount / total) * 100);
   const retPct = 100 - newPct;
@@ -300,13 +303,13 @@ function NewReturning({ newCount, retCount }: { newCount: number; retCount: numb
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-indigo-50 rounded-xl p-5 text-center">
           <p className="text-4xl font-bold text-indigo-700">{newCount}</p>
-          <p className="text-sm text-indigo-500 mt-1 font-medium">New</p>
-          <p className="text-xs text-gray-400 mt-0.5">{newPct}% of customers</p>
+          <p className="text-sm text-indigo-500 mt-1 font-medium">{newLabel}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{newPct}% {ofCustomers}</p>
         </div>
         <div className="bg-emerald-50 rounded-xl p-5 text-center">
           <p className="text-4xl font-bold text-emerald-700">{retCount}</p>
-          <p className="text-sm text-emerald-600 mt-1 font-medium">Returning</p>
-          <p className="text-xs text-gray-400 mt-0.5">{retPct}% of customers</p>
+          <p className="text-sm text-emerald-600 mt-1 font-medium">{retLabel}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{retPct}% {ofCustomers}</p>
         </div>
       </div>
       {/* Split bar */}
@@ -323,12 +326,24 @@ function NewReturning({ newCount, retCount }: { newCount: number; retCount: numb
 }
 
 // ── Main Analytics Page ───────────────────────────────────────────────────────
+const RANGE_KEYS: Record<RangeKey, string> = {
+  "this-month": "an.thisMonth",
+  "last-month": "an.lastMonth",
+  "last-3-months": "an.last3",
+  "last-6-months": "an.last6",
+};
+
 export default function AnalyticsPage() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   const [userId,    setUserId]    = useState<string | null>(null);
+  const [currency,  setCurrency]  = useState<string>("JOD");
   const [range,     setRange]     = useState<RangeKey>("this-month");
   const [loading,   setLoading]   = useState(true);
+
+  // Make the business currency available to module-level money formatters.
+  ACTIVE_CURRENCY = currency;
 
   // Raw data state
   const [rb,        setRb]        = useState<RangeBooking[]>([]);
@@ -342,6 +357,8 @@ export default function AnalyticsPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/auth/login"); return; }
       setUserId(session.user.id);
+      const { data: profile } = await supabase.from("users").select("currency").eq("id", session.user.id).single();
+      if (profile?.currency) setCurrency(profile.currency);
     }
     init();
   }, [router]);
@@ -580,8 +597,8 @@ export default function AnalyticsPage() {
       {/* ── Header + date range toggle ── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Analytics</h2>
-          <p className="text-gray-500 text-sm mt-1">Understanding your business performance</p>
+          <h2 className="text-2xl font-bold text-gray-800 inline-flex items-center gap-2">{t("an.title")} <InfoTooltip textKey="tip.page.analytics" /></h2>
+          <p className="text-gray-500 text-sm mt-1">{t("an.subtitle")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {RANGES.map(r => (
@@ -594,7 +611,7 @@ export default function AnalyticsPage() {
                   : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400 hover:text-emerald-700"
               }`}
             >
-              {r.label}
+              {t(RANGE_KEYS[r.key])}
             </button>
           ))}
         </div>
@@ -603,68 +620,68 @@ export default function AnalyticsPage() {
       {/* ── Section 2: Stat cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
-          title="Total Bookings"
+          title={t("an.totalBookings")}
           value={String(totalN)}
-          sub={`${confirmedN} confirmed, ${pendingN} pending, ${cancelledN} cancelled`}
+          sub={`${confirmedN} ${t("an.confirmed")}، ${pendingN} ${t("an.pending")}، ${cancelledN} ${t("an.cancelled")}`}
         />
         <StatCard
-          title="Completed Revenue"
-          value={fmtAED(completedRev)}
-          sub={`From ${completedN} completed appointment${completedN !== 1 ? "s" : ""}`}
+          title={t("an.completedRevenue")}
+          value={fmtMoney(completedRev)}
+          sub={`${t("an.fromCompleted")} ${completedN} ${t("an.completedAppointments")}`}
         />
         <StatCard
-          title="New Customers"
+          title={t("an.newCustomers")}
           value={String(newCustN)}
-          sub={`${returningN} returning`}
+          sub={`${returningN} ${t("an.returning")}`}
         />
         <StatCard
-          title="Cancellation Rate"
+          title={t("an.cancellationRate")}
           value={`${cancelRate}%`}
-          sub={`${cancelledN} cancellation${cancelledN !== 1 ? "s" : ""} out of ${totalN} total`}
+          sub={`${cancelledN} ${t("an.cancellationsOutOf")} ${totalN}`}
         />
       </div>
 
       <div className="space-y-6">
 
-        {/* ── Section 3: Revenue over time ── */}
-        <Section title="Revenue Over Time">
-          <BarChart bars={revBars} />
+        {/* ── Section 3: Revenue over time (chart body stays LTR) ── */}
+        <Section title={t("an.revenueOverTime")}>
+          <div dir="ltr"><BarChart bars={revBars} /></div>
         </Section>
 
         {/* ── Section 4: Status breakdown ── */}
-        <Section title="Booking Status Breakdown">
+        <Section title={t("an.statusBreakdown")}>
           <StatusBar items={statusItems} />
         </Section>
 
         {/* ── Section 5: Top services ── */}
-        <Section title="Top Services">
-          <TopList items={topServices} emptyMsg="No bookings yet in this period." />
+        <Section title={t("an.topServices")}>
+          <TopList items={topServices} emptyMsg={t("an.noBookingsPeriod")} />
         </Section>
 
         {/* ── Section 6: Team performance (only if staff exist) ── */}
         {hasStaff && (
-          <Section title="Team Performance">
-            <TopList items={topStaff} emptyMsg="No assigned bookings in this period." />
+          <Section title={t("an.teamPerformance")}>
+            <TopList items={topStaff} emptyMsg={t("an.noAssigned")} />
           </Section>
         )}
 
         {/* ── Section 7: Busiest days and times ── */}
-        <Section title="When You're Busiest">
+        <Section title={t("an.whenBusiest")}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* 7A: Busiest days of week */}
+            {/* 7A: Busiest days of week (chart LTR) */}
             <div>
-              <p className="text-sm font-semibold text-gray-600 mb-4">Busiest Days of the Week</p>
+              <p className="text-sm font-semibold text-gray-600 mb-4">{t("an.busiestDays")}</p>
               {real.length === 0
-                ? <p className="text-gray-400 text-sm">No booking data yet.</p>
-                : <DowChart data={dowData} />
+                ? <p className="text-gray-400 text-sm">{t("an.noData")}</p>
+                : <div dir="ltr"><DowChart data={dowData} /></div>
               }
             </div>
-            {/* 7B: Busiest time slots */}
+            {/* 7B: Busiest time slots (chart LTR) */}
             <div>
-              <p className="text-sm font-semibold text-gray-600 mb-4">Busiest Time Slots</p>
+              <p className="text-sm font-semibold text-gray-600 mb-4">{t("an.busiestTimes")}</p>
               {topHours.length === 0
-                ? <p className="text-gray-400 text-sm">No booking data yet.</p>
-                : <HourBars items={topHours} />
+                ? <p className="text-gray-400 text-sm">{t("an.noData")}</p>
+                : <div dir="ltr"><HourBars items={topHours} /></div>
               }
             </div>
           </div>
@@ -672,8 +689,9 @@ export default function AnalyticsPage() {
 
         {/* ── Section 8: New vs Returning (only if customer data exists) ── */}
         {hasCustomerData && (
-          <Section title="New vs Returning Customers">
-            <NewReturning newCount={newCountSec8} retCount={retCountSec8} />
+          <Section title={t("an.newVsReturning")}>
+            <NewReturning newCount={newCountSec8} retCount={retCountSec8}
+              newLabel={t("an.new")} retLabel={t("an.returningLabel")} ofCustomers={t("an.ofCustomers")} emptyMsg={t("an.noCustomerData")} />
           </Section>
         )}
 

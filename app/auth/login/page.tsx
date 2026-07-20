@@ -4,9 +4,12 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { useLanguage, useApplyHtmlDir, LanguageToggle } from "@/lib/i18n/LanguageProvider";
 
 function LoginForm() {
   const router = useRouter();
+  const { t } = useLanguage();
+  useApplyHtmlDir();
   const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
@@ -44,9 +47,10 @@ function LoginForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
+        <div className="flex justify-end mb-2"><LanguageToggle /></div>
         <div className="text-center mb-8">
           <Link href="/" className="text-3xl font-bold text-slate-900">7jwzat</Link>
-          <p className="text-gray-500 mt-1">Sign in to your account</p>
+          <p className="text-gray-500 mt-1">{t("auth.signIn")}</p>
         </div>
 
         {passwordReset && (
@@ -64,7 +68,7 @@ function LoginForm() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address
+              {t("auth.emailAddress")}
             </label>
             <input
               type="email"
@@ -78,7 +82,7 @@ function LoginForm() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
+              {t("auth.password")}
             </label>
             <input
               type="password"
@@ -90,7 +94,7 @@ function LoginForm() {
             />
             <div className="text-right mt-1">
               <Link href="/auth/forgot-password" className="text-sm text-emerald-600 hover:underline">
-                Forgot your password?
+                {t("auth.forgotPassword")}
               </Link>
             </div>
           </div>
@@ -100,14 +104,14 @@ function LoginForm() {
             disabled={loading}
             className="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-60 transition"
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? t("auth.signingIn") : t("auth.signInBtn")}
           </button>
         </form>
 
         <p className="text-center text-sm text-gray-500 mt-6">
-          Don&apos;t have an account?{" "}
+          {t("auth.noAccount")}{" "}
           <Link href="/auth/signup" className="text-emerald-600 font-medium hover:underline">
-            Create one
+            {t("auth.createOne")}
           </Link>
         </p>
       </div>

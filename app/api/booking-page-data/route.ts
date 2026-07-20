@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   // ── 1. Find business by slug ───────────────────────────────────────────────
   const { data: users, error: userErr } = await supabase
     .from("users")
-    .select("id, business_name, email");
+    .select("id, business_name, email, currency, whatsapp_number, address");
 
   if (userErr) {
     console.error("booking-page-data: users error:", userErr.message);

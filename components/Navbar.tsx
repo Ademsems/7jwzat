@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useLanguage, LanguageToggle } from "@/lib/i18n/LanguageProvider";
 
 const NAV_LINKS = [
-  { label: "How It Works", href: "/#how-it-works", id: "how-it-works" },
-  { label: "Features",     href: "/#features",     id: "features"     },
-  { label: "Pricing",      href: "/#pricing",      id: "pricing"      },
-  { label: "FAQ",          href: "/#faq",           id: "faq"          },
-  { label: "Contact",      href: "/#contact",       id: "contact"      },
+  { key: "m.nav.how",      href: "/#how-it-works", id: "how-it-works" },
+  { key: "m.nav.features", href: "/#features",     id: "features"     },
+  { key: "m.nav.pricing",  href: "/#pricing",      id: "pricing"      },
+  { key: "m.nav.faq",      href: "/#faq",          id: "faq"          },
+  { key: "m.nav.contact",  href: "/#contact",      id: "contact"      },
 ];
 
 export function Navbar() {
+  const { t, locale } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled]     = useState(false);
   const [activeId, setActiveId]     = useState("");
@@ -26,11 +28,8 @@ export function Navbar() {
   /* ── Active section detection ── */
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
-
-    const sectionIds = NAV_LINKS.map((l) => l.id);
     const observers: IntersectionObserver[] = [];
-
-    sectionIds.forEach((id) => {
+    NAV_LINKS.forEach(({ id }) => {
       const el = document.getElementById(id);
       if (!el) return;
       const obs = new IntersectionObserver(
@@ -40,7 +39,6 @@ export function Navbar() {
       obs.observe(el);
       observers.push(obs);
     });
-
     return () => observers.forEach((o) => o.disconnect());
   }, []);
 
@@ -58,14 +56,17 @@ export function Navbar() {
   return (
     <header className={headerClass}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-        {/* Logo */}
-        <Link href="/" className="text-xl font-bold text-slate-900 tracking-tight hover:text-emerald-700 transition-colors">
-          7jwzat
+        {/* Logo — Arabic renders حجوزات with 7jwzat alongside for recognition */}
+        <Link href="/" className="flex items-baseline gap-2 hover:text-emerald-700 transition-colors">
+          <span className="text-xl font-bold text-slate-900 tracking-tight">{t("brand.logo")}</span>
+          {locale === "ar" && (
+            <span className="text-xs font-semibold text-slate-400 tracking-wide">7jwzat</span>
+          )}
         </Link>
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-          {NAV_LINKS.map(({ label, href, id }) => {
+          {NAV_LINKS.map(({ key, href, id }) => {
             const isActive = activeId === id;
             return (
               <a
@@ -75,10 +76,9 @@ export function Navbar() {
                   isActive ? "text-emerald-600" : "hover:text-slate-900"
                 }`}
               >
-                {label}
-                {/* Active underline */}
+                {t(key)}
                 <span
-                  className="absolute bottom-0 left-0 h-0.5 bg-emerald-500 rounded-full transition-all duration-300"
+                  className="absolute bottom-0 start-0 h-0.5 bg-emerald-500 rounded-full transition-all duration-300"
                   style={{ width: isActive ? "100%" : "0%" }}
                 />
               </a>
@@ -88,17 +88,18 @@ export function Navbar() {
 
         {/* Desktop CTAs */}
         <div className="hidden md:flex items-center gap-3">
+          <LanguageToggle />
           <Link
             href="/auth/login"
             className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
           >
-            Sign in
+            {t("m.nav.signIn")}
           </Link>
           <Link
             href="/auth/signup"
             className="btn-shimmer bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
           >
-            Start Free
+            {t("m.nav.startFree")}
           </Link>
         </div>
 
@@ -109,13 +110,10 @@ export function Navbar() {
           aria-label="Toggle menu"
           aria-expanded={mobileOpen}
         >
-          {/* Animated hamburger → X */}
           <div className="relative w-5 h-5 flex flex-col justify-center gap-[5px]">
             <span
               className="block h-[2px] bg-current rounded-full transition-all duration-300 origin-center"
-              style={{
-                transform: mobileOpen ? "rotate(45deg) translate(2px, 7px)" : "none",
-              }}
+              style={{ transform: mobileOpen ? "rotate(45deg) translate(2px, 7px)" : "none" }}
             />
             <span
               className="block h-[2px] bg-current rounded-full transition-all duration-200"
@@ -123,18 +121,16 @@ export function Navbar() {
             />
             <span
               className="block h-[2px] bg-current rounded-full transition-all duration-300 origin-center"
-              style={{
-                transform: mobileOpen ? "rotate(-45deg) translate(2px, -7px)" : "none",
-              }}
+              style={{ transform: mobileOpen ? "rotate(-45deg) translate(2px, -7px)" : "none" }}
             />
           </div>
         </button>
       </div>
 
-      {/* Mobile dropdown — animated slide-down */}
+      {/* Mobile dropdown */}
       {mobileOpen && (
         <div className="mobile-menu-enter md:hidden border-t border-slate-100 bg-white px-4 py-4 flex flex-col gap-4">
-          {NAV_LINKS.map(({ label, href, id }) => (
+          {NAV_LINKS.map(({ key, href, id }) => (
             <a
               key={id}
               href={href}
@@ -143,23 +139,26 @@ export function Navbar() {
               }`}
               onClick={() => setMobileOpen(false)}
             >
-              {label}
+              {t(key)}
             </a>
           ))}
           <div className="pt-2 border-t border-slate-100 flex flex-col gap-3">
+            <div className="flex justify-center pb-1">
+              <LanguageToggle />
+            </div>
             <Link
               href="/auth/login"
               className="text-sm font-medium text-slate-600 text-center py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
               onClick={() => setMobileOpen(false)}
             >
-              Sign in
+              {t("m.nav.signIn")}
             </Link>
             <Link
               href="/auth/signup"
               className="btn-shimmer bg-emerald-600 text-white text-sm font-semibold text-center py-2 rounded-lg hover:bg-emerald-700 transition-colors"
               onClick={() => setMobileOpen(false)}
             >
-              Start Free
+              {t("m.nav.startFree")}
             </Link>
           </div>
         </div>

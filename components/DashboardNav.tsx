@@ -1,62 +1,210 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useLanguage, useApplyHtmlDir, LanguageToggle } from "@/lib/i18n/LanguageProvider";
 
-const NAV_ITEMS = [
-  { label: "Dashboard",      href: "/dashboard",                icon: "\u{1F3E0}" },
-  { label: "Analytics",      href: "/dashboard/analytics",      icon: "\u{1F4CA}" },
-  { label: "Services",       href: "/dashboard/services",       icon: "\u{2702}️" },
-  { label: "Custom Fields",  href: "/dashboard/custom-fields",  icon: "\u{1F4DD}" },
-  { label: "Sessions",       href: "/dashboard/sessions",       icon: "\u{1F465}" },
-  { label: "Staff",          href: "/dashboard/staff",          icon: "\u{1F465}\u{200D}\u{1F91D}\u{200D}\u{1F465}" },
-  { label: "Customers",      href: "/dashboard/customers",      icon: "\u{1F464}" },
-  { label: "Business Hours", href: "/dashboard/business-hours", icon: "\u{1F550}" },
-  { label: "Bookings",       href: "/dashboard/bookings",       icon: "\u{1F4C5}" },
-  { label: "Settings",       href: "/dashboard/settings",       icon: "\u{2699}️" },
+// ── Nav structure ──────────────────────────────────────────────────────────
+type NavItem = { key: string; href: string; icon: string };
+type NavGroup = { groupKey: string; storageKey: string; items: NavItem[] };
+type NavEntry = { type: "item"; item: NavItem } | { type: "group"; group: NavGroup };
+
+const NAV: NavEntry[] = [
+  { type: "item", item: { key: "nav.dashboard", href: "/dashboard",         icon: "🏠" } },
+  { type: "item", item: { key: "nav.bookings",  href: "/dashboard/bookings", icon: "📅" } },
+
+  {
+    type: "group",
+    group: {
+      groupKey:   "nav.group.calendar",
+      storageKey: "7jwzat-nav-calendar",
+      items: [
+        { key: "nav.businessHours", href: "/dashboard/business-hours", icon: "🕐" },
+        { key: "nav.sessions",      href: "/dashboard/sessions",       icon: "👥" },
+      ],
+    },
+  },
+
+  {
+    type: "group",
+    group: {
+      groupKey:   "nav.group.setup",
+      storageKey: "7jwzat-nav-setup",
+      items: [
+        { key: "nav.services",     href: "/dashboard/services",      icon: "✂️" },
+        { key: "nav.customFields", href: "/dashboard/custom-fields", icon: "📝" },
+        { key: "nav.staff",        href: "/dashboard/staff",         icon: "👥‍🤝‍👥" },
+      ],
+    },
+  },
+
+  { type: "item", item: { key: "nav.customers", href: "/dashboard/customers", icon: "👤" } },
+
+  {
+    type: "group",
+    group: {
+      groupKey:   "nav.group.insights",
+      storageKey: "7jwzat-nav-insights",
+      items: [
+        { key: "nav.analytics", href: "/dashboard/analytics", icon: "📊" },
+      ],
+    },
+  },
+
+  { type: "item", item: { key: "nav.settings", href: "/dashboard/settings", icon: "⚙️" } },
 ];
 
-export function DashboardNav() {
+// Read stored collapse state; default = expanded (true)
+function readStored(key: string): boolean {
+  if (typeof window === "undefined") return true;
+  const v = localStorage.getItem(key);
+  return v === null ? true : v !== "false";
+}
+
+// ── Collapsible group ──────────────────────────────────────────────────────
+function NavGroup({
+  group,
+  isActive,
+  onNavigate,
+}: {
+  group: NavGroup;
+  isActive: (href: string) => boolean;
+  onNavigate?: () => void;
+}) {
+  const { t } = useLanguage();
+  const hasActive = group.items.some(i => isActive(i.href));
+
+  // Default open; auto-open if active item is inside
+  const [open, setOpen] = useState<boolean>(() => {
+    const stored = readStored(group.storageKey);
+    return stored || hasActive;
+  });
+
+  // If the active route changes to inside this group while it's collapsed, expand
+  useEffect(() => {
+    if (hasActive && !open) setOpen(true);
+  }, [hasActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggle() {
+    setOpen(prev => {
+      const next = !prev;
+      localStorage.setItem(group.storageKey, String(next));
+      return next;
+    });
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={toggle}
+        className="w-full flex items-center justify-between px-2 py-1.5 mt-3 mb-0.5 text-[10px] font-semibold tracking-widest text-gray-400 uppercase hover:text-gray-600 transition select-none"
+      >
+        <span>{t(group.groupKey)}</span>
+        {/* Chevron — rotates 180° when open; flipped for RTL via transform */}
+        <svg
+          className={`w-3 h-3 shrink-0 transition-transform duration-200 ${open ? "rotate-180" : "rotate-0"}`}
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M2 4l4 4 4-4" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="space-y-0.5">
+          {group.items.map(item => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                className={`flex items-center gap-3 ps-6 pe-3 py-2 rounded-lg text-sm font-medium transition
+                  ${active
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
+                  }`}
+              >
+                <span>{item.icon}</span>
+                <span>{t(item.key)}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Single nav item ────────────────────────────────────────────────────────
+function NavItemLink({
+  item,
+  isActive,
+  onNavigate,
+}: {
+  item: NavItem;
+  isActive: (href: string) => boolean;
+  onNavigate?: () => void;
+}) {
+  const { t } = useLanguage();
+  const active = isActive(item.href);
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition
+        ${active
+          ? "bg-emerald-50 text-emerald-700"
+          : "text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
+        }`}
+    >
+      <span>{item.icon}</span>
+      <span>{t(item.key)}</span>
+    </Link>
+  );
+}
+
+// ── Full nav links list ────────────────────────────────────────────────────
+function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname === href || pathname.startsWith(href + "/");
   }
 
+  return (
+    <div className="space-y-0.5">
+      {NAV.map((entry, i) =>
+        entry.type === "item" ? (
+          <NavItemLink key={entry.item.href} item={entry.item} isActive={isActive} onNavigate={onNavigate} />
+        ) : (
+          <NavGroup key={entry.group.storageKey} group={entry.group} isActive={isActive} onNavigate={onNavigate} />
+        )
+      )}
+    </div>
+  );
+}
+
+// ── Main export ────────────────────────────────────────────────────────────
+export function DashboardNav() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { t } = useLanguage();
+  useApplyHtmlDir();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   async function handleLogout() {
     setMobileOpen(false);
     await supabase.auth.signOut();
     router.push("/");
-  }
-
-  function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
-    return (
-      <>
-        {NAV_ITEMS.map(item => {
-          const active = isActive(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition
-                ${active
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
-                }`}
-            >
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </>
-    );
   }
 
   return (
@@ -65,17 +213,18 @@ export function DashboardNav() {
       <aside className="hidden lg:flex w-64 bg-white shadow-md flex-col shrink-0 min-h-screen">
         <div className="px-6 py-6 border-b">
           <Link href="/" className="text-2xl font-bold text-slate-900">7jwzat</Link>
-          <p className="text-xs text-gray-400 mt-0.5">Booking System</p>
+          <p className="text-xs text-gray-400 mt-0.5">{t("nav.tagline")}</p>
         </div>
-        <nav className="flex-1 px-4 py-6 space-y-1">
+        <nav className="flex-1 px-4 py-4 overflow-y-auto">
           <NavLinks />
         </nav>
-        <div className="px-4 py-4 border-t">
+        <div className="px-4 py-4 border-t space-y-3">
+          <LanguageToggle className="w-full justify-center" />
           <button
             onClick={handleLogout}
-            className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition text-sm font-medium"
+            className="w-full text-start flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition text-sm font-medium"
           >
-            <span>{"\u{1F6AA}"}</span> Logout
+            <span>🚪</span> {t("nav.logout")}
           </button>
         </div>
       </aside>
@@ -99,14 +248,15 @@ export function DashboardNav() {
             className="lg:hidden fixed inset-0 z-40 bg-black/40"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="lg:hidden fixed top-14 left-0 right-0 z-50 bg-white border-b shadow-xl px-4 py-3 space-y-1">
+          <div className="lg:hidden fixed top-14 left-0 right-0 z-50 bg-white border-b shadow-xl px-4 py-3 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
             <NavLinks onNavigate={() => setMobileOpen(false)} />
-            <div className="border-t border-gray-100 pt-2 mt-2">
+            <div className="border-t border-gray-100 pt-2 mt-3 space-y-2">
+              <LanguageToggle className="w-full justify-center" />
               <button
                 onClick={handleLogout}
-                className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition text-sm font-medium"
+                className="w-full text-start flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition text-sm font-medium"
               >
-                <span>{"\u{1F6AA}"}</span> Logout
+                <span>🚪</span> {t("nav.logout")}
               </button>
             </div>
           </div>

@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { COUNTRIES, DEFAULT_COUNTRY, currencyForCountry } from "@/lib/currency";
+import { useLanguage, useApplyHtmlDir, LanguageToggle } from "@/lib/i18n/LanguageProvider";
 
 type BusinessType =
   | "hair_beauty"
@@ -24,6 +26,8 @@ const BUSINESS_TYPES: { value: BusinessType; label: string; icon: string; desc: 
 
 export default function SignupPage() {
   const router = useRouter();
+  const { t } = useLanguage();
+  useApplyHtmlDir();
 
   // Step 1 = business type selection, Step 2 = account details
   const [step, setStep] = useState<1 | 2>(1);
@@ -34,6 +38,7 @@ export default function SignupPage() {
     password: "",
     confirmPassword: "",
     businessName: "",
+    country: DEFAULT_COUNTRY,
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,8 +69,26 @@ export default function SignupPage() {
           email: form.email,
           business_name: form.businessName.trim(),
           business_type: selectedType ?? "other",
+          country: form.country,
+          currency: currencyForCountry(form.country),
         });
         if (profileError) throw profileError;
+
+        // Pre-populate default business hours (Sun–Thu 09:00–17:00, Fri/Sat
+        // closed) so new businesses avoid the "hours not configured" dead-end.
+        // Non-fatal: never block signup on this.
+        try {
+          const defaultHours = [0, 1, 2, 3, 4].map(dow => ({
+            user_id: data.user!.id,
+            day_of_week: dow,
+            start_time: "09:00",
+            end_time: "17:00",
+          }));
+          await supabase.from("business_hours").insert(defaultHours);
+        } catch (hoursErr) {
+          console.error("signup: default hours insert failed (non-fatal):", hoursErr);
+        }
+
         router.push("/dashboard");
       }
     } catch (err: unknown) {
@@ -80,9 +103,10 @@ export default function SignupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
         <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-lg">
+          <div className="flex justify-end mb-2"><LanguageToggle /></div>
           <div className="text-center mb-6">
             <Link href="/" className="text-3xl font-bold text-slate-900">7jwzat</Link>
-            <p className="text-gray-500 mt-1 text-sm">Step 1 of 2 — What type of business do you run?</p>
+            <p className="text-gray-500 mt-1 text-sm">{t("signup.step1")}</p>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
@@ -114,12 +138,12 @@ export default function SignupPage() {
             disabled={!selectedType}
             className="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
-            Continue &rarr;
+            {t("signup.continue")}
           </button>
 
           <p className="text-center text-sm text-gray-500 mt-4">
-            Already have an account?{" "}
-            <Link href="/auth/login" className="text-emerald-600 font-medium hover:underline">Sign in</Link>
+            {t("auth.haveAccount")}{" "}
+            <Link href="/auth/login" className="text-emerald-600 font-medium hover:underline">{t("auth.signInLink")}</Link>
           </p>
         </div>
       </div>
@@ -130,9 +154,10 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
+        <div className="flex justify-end mb-2"><LanguageToggle /></div>
         <div className="text-center mb-6">
           <Link href="/" className="text-3xl font-bold text-slate-900">7jwzat</Link>
-          <p className="text-gray-500 mt-1 text-sm">Step 2 of 2 — Your account details</p>
+          <p className="text-gray-500 mt-1 text-sm">{t("signup.step2")}</p>
         </div>
 
         {/* Selected type pill */}
@@ -146,7 +171,7 @@ export default function SignupPage() {
               onClick={() => setStep(1)}
               className="text-emerald-600 hover:underline text-xs font-medium"
             >
-              Change
+              {t("signup.change")}
             </button>
           </div>
         )}
@@ -159,50 +184,63 @@ export default function SignupPage() {
 
         <form onSubmit={handleSubmit} autoComplete="off" className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("signup.country")}</label>
+            <select
+              value={form.country}
+              onChange={e => setForm({ ...form, country: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              {COUNTRIES.map(c => (
+                <option key={c.code} value={c.code}>{c.label} ({c.currency})</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">{t("signup.countryHint")}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("signup.businessName")}</label>
             <input
               type="text"
               required
               autoComplete="off"
               value={form.businessName}
               onChange={e => setForm({ ...form, businessName: e.target.value })}
-              placeholder="e.g. Al Noor Salon"
+              placeholder={t("signup.businessNamePlaceholder")}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("auth.emailAddress")}</label>
             <input
               type="email"
               required
               autoComplete="off"
               value={form.email}
               onChange={e => setForm({ ...form, email: e.target.value })}
-              placeholder="you@example.com"
+              placeholder={t("signup.emailPlaceholder")}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("signup.password")}</label>
             <input
               type="password"
               required
               autoComplete="new-password"
               value={form.password}
               onChange={e => setForm({ ...form, password: e.target.value })}
-              placeholder="Min. 8 characters"
+              placeholder={t("signup.passwordPlaceholder")}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("signup.confirmPassword")}</label>
             <input
               type="password"
               required
               autoComplete="new-password"
               value={form.confirmPassword}
               onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
-              placeholder="Repeat your password"
+              placeholder={t("signup.confirmPlaceholder")}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
@@ -213,21 +251,21 @@ export default function SignupPage() {
               onClick={() => setStep(1)}
               className="flex-1 border border-gray-300 text-gray-600 py-3 rounded-lg font-semibold hover:bg-gray-50 transition"
             >
-              &larr; Back
+              {t("d.back")}
             </button>
             <button
               type="submit"
               disabled={loading}
               className="flex-1 bg-emerald-600 text-white py-3 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-60 transition"
             >
-              {loading ? "Creating account..." : "Create Account"}
+              {loading ? t("signup.creating") : t("signup.createAccount")}
             </button>
           </div>
         </form>
 
         <p className="text-center text-sm text-gray-500 mt-5">
-          Already have an account?{" "}
-          <Link href="/auth/login" className="text-emerald-600 font-medium hover:underline">Sign in</Link>
+          {t("auth.haveAccount")}{" "}
+          <Link href="/auth/login" className="text-emerald-600 font-medium hover:underline">{t("auth.signInLink")}</Link>
         </p>
       </div>
     </div>

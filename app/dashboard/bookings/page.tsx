@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { InfoTooltip } from "@/components/InfoTooltip";
+import { formatDateLocale } from "@/lib/i18n/format";
 
 type Status = "pending" | "confirmed" | "completed" | "cancelled";
 type BookingType = "customer" | "blocked" | "manual";
@@ -56,6 +59,7 @@ const STATUS_STYLES: Record<Status, string> = {
 
 export default function BookingsPage() {
   const router = useRouter();
+  const { t, locale } = useLanguage();
   const [bookings, setBookings]       = useState<Booking[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -147,13 +151,6 @@ export default function BookingsPage() {
     setDeletingId(null);
   }
 
-  function staffLabel(b: Booking) {
-    if (b.staff_id) {
-      return staffOptions.find(s => s.id === b.staff_id)?.name ?? b.staff_preference ?? "—";
-    }
-    return null; // show "Any" placeholder
-  }
-
   function toggleAnswers(id: string) {
     setExpandedAnswers(prev => {
       const next = new Set(prev);
@@ -164,7 +161,7 @@ export default function BookingsPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">Loading...</p>
+      <p className="text-gray-500">{t("d.loading")}</p>
     </div>
   );
 
@@ -172,14 +169,14 @@ export default function BookingsPage() {
     <main className="flex-1 p-4 sm:p-8 min-w-0">
       <div className="flex items-start justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Your Bookings</h2>
-          <p className="text-gray-500 text-sm mt-1">Manage all customer bookings and appointments.</p>
+          <h2 className="text-2xl font-bold text-gray-800 inline-flex items-center gap-2">{t("bk.title")} <InfoTooltip textKey="tip.page.bookings" /></h2>
+          <p className="text-gray-500 text-sm mt-1">{t("bk.subtitle")}</p>
         </div>
         <Link
           href="/dashboard/bookings/new"
           className="shrink-0 bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition"
         >
-          + Add / Block
+          {t("bk.addBlock")}
         </Link>
       </div>
 
@@ -190,10 +187,10 @@ export default function BookingsPage() {
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         {bookings.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-gray-400 text-sm mb-4">No bookings yet.</p>
+            <p className="text-gray-400 text-sm mb-4">{t("bk.empty")}</p>
             {businessName && (
               <Link href={`/book/${encodeURIComponent(businessName)}`} className="text-emerald-600 text-sm hover:underline font-medium">
-                Share your booking page &rarr;
+                {t("bk.shareLink")}
               </Link>
             )}
           </div>
@@ -202,13 +199,13 @@ export default function BookingsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Customer</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Service</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Date &amp; Time</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Staff</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Contact</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Status</th>
-                  <th className="text-right text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">Actions</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("bk.colCustomer")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("bk.colService")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("bk.colDateTime")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("bk.colStaff")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("bk.colContact")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("bk.colStatus")}</th>
+                  <th className="text-end text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-4">{t("d.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -216,7 +213,6 @@ export default function BookingsPage() {
                   const isBlocked = b.booking_type === "blocked";
                   const isManual  = b.booking_type === "manual";
                   const isGroup   = !!b.group_session_id;
-                  const sLabel    = staffLabel(b);
 
                   return (
                     <tr key={b.id} className={`hover:bg-gray-50 transition ${isBlocked ? "opacity-70" : ""}`}>
@@ -225,19 +221,19 @@ export default function BookingsPage() {
                       <td className="px-6 py-4">
                         {isBlocked ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
-                            &#128683; Blocked
+                            &#128683; {t("bk.blocked")}
                           </span>
                         ) : (
                           <p className="font-medium text-gray-800">{b.customer_name}</p>
                         )}
                         {isManual && (
                           <span className="inline-flex items-center gap-1 mt-1 text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">
-                            &#128203; Manual
+                            &#128203; {t("bk.manual")}
                           </span>
                         )}
                         {isGroup && (
                           <span className="inline-flex items-center gap-1 mt-1 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                            &#128101; Group
+                            &#128101; {t("bk.group")}
                           </span>
                         )}
                         {(isBlocked || isManual) && b.internal_note && (
@@ -255,7 +251,7 @@ export default function BookingsPage() {
                               onClick={() => toggleAnswers(b.id)}
                               className="text-xs text-indigo-600 hover:underline"
                             >
-                              {expandedAnswers.has(b.id) ? "▾ Hide answers" : "▸ Custom answers"}
+                              {expandedAnswers.has(b.id) ? `▾ ${t("bk.hideAnswers")}` : `▸ ${t("bk.customAnswers")}`}
                             </button>
                             {expandedAnswers.has(b.id) && (
                               <div className="mt-1.5 space-y-1">
@@ -276,7 +272,7 @@ export default function BookingsPage() {
 
                       {/* Date & Time */}
                       <td className="px-6 py-4">
-                        <p className="text-gray-700">{fmtDate(b.booking_date)}</p>
+                        <p className="text-gray-700">{formatDateLocale(b.booking_date, locale)}</p>
                         <p className="text-xs text-gray-400 mt-0.5">{fmtTime(b.booking_time)}</p>
                       </td>
 
@@ -285,7 +281,7 @@ export default function BookingsPage() {
                         {isBlocked ? (
                           <span className="text-gray-300 text-xs">—</span>
                         ) : staffOptions.length === 0 ? (
-                          <span className="text-xs text-gray-400 italic">No staff</span>
+                          <span className="text-xs text-gray-400 italic">{t("bk.noStaff")}</span>
                         ) : (
                           <select
                             value={b.staff_id ?? ""}
@@ -293,16 +289,14 @@ export default function BookingsPage() {
                             onChange={e => handleStaffChange(b.id, e.target.value)}
                             className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 max-w-[130px]"
                           >
-                            <option value="">
-                              {sLabel === null ? "Any / Unassigned" : "Any / Unassigned"}
-                            </option>
+                            <option value="">{t("bk.anyUnassigned")}</option>
                             {staffOptions.map(s => (
                               <option key={s.id} value={s.id}>{s.name}</option>
                             ))}
                           </select>
                         )}
                         {staffOptions.length > 0 && !b.staff_id && (
-                          <p className="text-xs text-gray-400 italic mt-0.5">Any</p>
+                          <p className="text-xs text-gray-400 italic mt-0.5">{t("bk.any")}</p>
                         )}
                       </td>
 
@@ -322,7 +316,7 @@ export default function BookingsPage() {
                       <td className="px-6 py-4">
                         {isBlocked ? (
                           <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-gray-100 text-gray-500 border-gray-200">
-                            Blocked
+                            {t("status.blocked")}
                           </span>
                         ) : (
                           <select
@@ -331,22 +325,22 @@ export default function BookingsPage() {
                             onChange={e => handleStatusChange(b.id, e.target.value as Status)}
                             className={`text-xs font-semibold px-2 py-1 rounded-full border cursor-pointer focus:outline-none disabled:opacity-60 ${STATUS_STYLES[b.status]}`}
                           >
-                            <option value="pending">Pending</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
+                            <option value="pending">{t("status.pending")}</option>
+                            <option value="confirmed">{t("status.confirmed")}</option>
+                            <option value="completed">{t("status.completed")}</option>
+                            <option value="cancelled">{t("status.cancelled")}</option>
                           </select>
                         )}
                       </td>
 
                       {/* Actions */}
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-end">
                         <button
                           onClick={() => handleDelete(b)}
                           disabled={deletingId === b.id}
                           className="text-xs font-medium text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-60 transition"
                         >
-                          {deletingId === b.id ? "..." : "Delete"}
+                          {deletingId === b.id ? "..." : t("d.delete")}
                         </button>
                       </td>
                     </tr>
@@ -354,15 +348,15 @@ export default function BookingsPage() {
                 })}
               </tbody>
             </table>
-            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-right">
-              <span className="text-xs text-gray-400">{bookings.length} record{bookings.length !== 1 ? "s" : ""} total</span>
+            <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-end">
+              <span className="text-xs text-gray-400">{bookings.length} {t("bk.records")}</span>
             </div>
           </div>
         )}
       </div>
 
       <div className="mt-6">
-        <Link href="/dashboard" className="text-sm text-emerald-600 hover:underline">&larr; Back to Dashboard</Link>
+        <Link href="/dashboard" className="text-sm text-emerald-600 hover:underline">{t("bk.backToDashboard")}</Link>
       </div>
     </main>
   );

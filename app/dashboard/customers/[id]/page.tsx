@@ -5,6 +5,8 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
+import { formatDateLocale, formatTimeLocale } from "@/lib/i18n/format";
 
 interface Customer {
   id: string;
@@ -38,20 +40,10 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: "bg-red-100    text-red-800",
 };
 
-function fmtDate(d: string) {
-  return new Date(d + "T00:00:00").toLocaleDateString("en-AE", {
-    weekday: "short", day: "numeric", month: "short", year: "numeric",
-  });
-}
-function fmtTime(t: string) {
-  const [h, m] = t.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
-}
 
 export default function CustomerDetailPage() {
   const router  = useRouter();
+  const { t, locale } = useLanguage();
   const params  = useParams();
   const id      = params.id as string;
 
@@ -142,7 +134,7 @@ export default function CustomerDetailPage() {
       .update({ notes: notes.trim() || null })
       .eq("id", customer.id);
     if (error) showToast("Failed to save notes.");
-    else showToast("Notes saved.");
+    else showToast(t("cust.notesSaved"));
     setSavingNotes(false);
   }
 
@@ -156,14 +148,14 @@ export default function CustomerDetailPage() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">Loading...</p>
+      <p className="text-gray-500">{t("d.loading")}</p>
     </div>
   );
 
   if (notFound) return (
     <main className="flex-1 p-4 sm:p-8">
-      <Link href="/dashboard/customers" className="text-sm text-emerald-600 hover:underline">&larr; Back to Customers</Link>
-      <p className="text-gray-500 mt-6">Customer not found.</p>
+      <Link href="/dashboard/customers" className="text-sm text-emerald-600 hover:underline">{t("cust.back")}</Link>
+      <p className="text-gray-500 mt-6">{t("cust.notFound")}</p>
     </main>
   );
 
@@ -173,7 +165,7 @@ export default function CustomerDetailPage() {
   return (
     <main className="flex-1 p-4 sm:p-8 max-w-4xl">
       <Link href="/dashboard/customers" className="text-sm text-emerald-600 hover:underline">
-        &larr; Back to Customers
+        {t("cust.back")}
       </Link>
 
       {/* Header card */}
@@ -196,15 +188,15 @@ export default function CustomerDetailPage() {
           <div className="flex gap-4 text-center shrink-0">
             <div className="bg-gray-50 rounded-lg px-4 py-2">
               <p className="text-xl font-bold text-gray-800">{bookings.length}</p>
-              <p className="text-xs text-gray-400">Total</p>
+              <p className="text-xs text-gray-400">{t("cust.total2")}</p>
             </div>
             <div className="bg-emerald-50 rounded-lg px-4 py-2">
               <p className="text-xl font-bold text-emerald-700">{upcoming}</p>
-              <p className="text-xs text-emerald-500">Upcoming</p>
+              <p className="text-xs text-emerald-500">{t("cust.upcoming")}</p>
             </div>
             <div className="bg-gray-50 rounded-lg px-4 py-2">
               <p className="text-xl font-bold text-gray-800">{past}</p>
-              <p className="text-xs text-gray-400">Past</p>
+              <p className="text-xs text-gray-400">{t("cust.past")}</p>
             </div>
           </div>
         </div>
@@ -212,60 +204,60 @@ export default function CustomerDetailPage() {
 
       {/* Notes */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-        <h3 className="font-semibold text-gray-700 mb-1">Notes</h3>
+        <h3 className="font-semibold text-gray-700 mb-1">{t("cust.notes")}</h3>
         <p className="text-xs text-gray-400 mb-3">
-          Internal notes (e.g. &ldquo;Prefers mornings&rdquo;, &ldquo;Allergic to shellac&rdquo;). Not visible to the customer.
+          {t("cust.notesDesc")}
         </p>
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
           onBlur={handleNotesSave}
-          placeholder="Add a note about this customer..."
+          placeholder={t("cust.notesPlaceholder")}
           rows={3}
           className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
         />
         <p className="text-xs text-gray-400 mt-1">
-          {savingNotes ? "Saving..." : "Auto-saves when you click away."}
+          {savingNotes ? t("cust.notesSaving") : t("cust.notesAutosave")}
         </p>
       </div>
 
       {/* Booking history */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-700">Booking History</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{bookings.length} booking{bookings.length !== 1 ? "s" : ""}, newest first</p>
+          <h3 className="font-semibold text-gray-700">{t("cust.history")}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{bookings.length} · {t("cust.bookingsNewestFirst")}</p>
         </div>
 
         {bookings.length === 0 ? (
           <div className="p-10 text-center">
-            <p className="text-gray-400 text-sm">No bookings yet for this customer.</p>
+            <p className="text-gray-400 text-sm">{t("cust.noBookings")}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Date</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Time</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Service</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Staff</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Status</th>
-                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">Answers</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("cust.colDate")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("cust.colTime")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("cust.colServiceH")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("cust.colStaffH")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("cust.colStatusH")}</th>
+                  <th className="text-start text-xs font-semibold text-gray-500 uppercase tracking-wide px-6 py-3">{t("cust.answers")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {bookings.map(b => (
                   <tr key={b.id} className="hover:bg-gray-50 transition align-top">
-                    <td className="px-6 py-3 text-gray-700">{fmtDate(b.booking_date)}</td>
-                    <td className="px-6 py-3 text-gray-700">{fmtTime(b.booking_time)}</td>
+                    <td className="px-6 py-3 text-gray-700">{formatDateLocale(b.booking_date, locale)}</td>
+                    <td className="px-6 py-3 text-gray-700">{formatTimeLocale(b.booking_time, locale)}</td>
                     <td className="px-6 py-3 text-gray-700">{b.service_name}</td>
                     <td className="px-6 py-3 text-gray-600">
-                      {b.staff_name ?? <span className="text-gray-300 italic text-xs">Any</span>}
+                      {b.staff_name ?? <span className="text-gray-300 italic text-xs">{t("bk.any")}</span>}
                     </td>
                     <td className="px-6 py-3">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
                         ${STATUS_STYLES[b.status as Status] ?? "bg-gray-100 text-gray-500"}`}>
-                        {b.status}
+                        {t(`status.${b.status}`)}
                       </span>
                     </td>
                     <td className="px-6 py-3">
@@ -275,7 +267,7 @@ export default function CustomerDetailPage() {
                             onClick={() => toggleAnswers(b.id)}
                             className="text-xs text-indigo-600 hover:underline whitespace-nowrap"
                           >
-                            {expandedAnswers.has(b.id) ? "▾ Hide" : `▸ View (${answersMap[b.id].length})`}
+                            {expandedAnswers.has(b.id) ? `▾ ${t("cust.hideAnswers")}` : `▸ ${t("cust.viewAnswers")} (${answersMap[b.id].length})`}
                           </button>
                           {expandedAnswers.has(b.id) && (
                             <div className="mt-1.5 space-y-1">
