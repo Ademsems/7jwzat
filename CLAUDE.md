@@ -449,7 +449,7 @@ Vercel saw none of the work until a manual merge. This must not repeat.
 
 | Issue | Status |
 |---|---|
-| **Rebrand:** "7jwzat" → "Sajjel" | In progress. Code/metadata/emails still use old name. Domain migration to `sajjel.online` pending. |
+| **Rebrand:** "7jwzat" → "Sajjel" | In progress. Marketing site, shared i18n, and core-app dashboard/auth/email brand text updated. Sentry org slug in `next.config.js` and `7jwzat-*` storage/cookie keys intentionally left as-is. Domain migration to `sajjel.online` pending. |
 | **Email sandbox:** Resend outbound delivery unreliable until sending domain verified. | Deferred until domain confirmed. |
 | **Supabase address column schema cache** | Saving `users.address` from Settings page fails with "column not found in schema cache" until PostgREST schema is reloaded in Supabase dashboard. |
 | **Slug column:** Business lookup does full-table scan + client-side slug match. | Deferred. Add `slug` unique column to `users` for scale. |
@@ -482,6 +482,7 @@ Vercel saw none of the work until a manual merge. This must not repeat.
 | Business address | `users.address` field in Settings; shown on public booking page with Google Maps link |
 | Grouped sidebar nav | Collapsible nav groups (Calendar & Availability, Setup, Insights) with localStorage persistence |
 | Sentry error tracking | `@sentry/nextjs` with client/server/edge configs, Session Replay, `global-error.tsx` boundary |
+| 2026-07-22 — Core-app rebrand (7jwzat → Sajjel) | Latin brand text "7jwzat" → "Sajjel" in `DashboardNav.tsx` sidebar logo (desktop + mobile), the logo link on all four `app/auth/*/page.tsx` pages (login, signup ×2, reset-password, forgot-password), and the "Powered by" line in both `lib/email.ts` templates. `7jwzat-nav-*` localStorage keys and the Sentry org slug in `next.config.js` intentionally left unchanged. No hardcoded Arabic "حجوزات" brand text found in core-app files (verified via repo-wide search) — Arabic brand copy lives in `lib/i18n/ar.ts`, owned by the marketing/front session. |
 
 ---
 

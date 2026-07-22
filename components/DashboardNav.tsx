@@ -212,7 +212,7 @@ export function DashboardNav() {
       {/* ── Desktop sidebar (lg+) ─────────────────────────────── */}
       <aside className="hidden lg:flex w-64 bg-white shadow-md flex-col shrink-0 min-h-screen">
         <div className="px-6 py-6 border-b">
-          <Link href="/" className="text-2xl font-bold text-slate-900">7jwzat</Link>
+          <Link href="/" className="text-2xl font-bold text-slate-900">Sajjel</Link>
           <p className="text-xs text-gray-400 mt-0.5">{t("nav.tagline")}</p>
         </div>
         <nav className="flex-1 px-4 py-4 overflow-y-auto">
@@ -231,7 +231,7 @@ export function DashboardNav() {
 
       {/* ── Mobile top bar (below lg) ─────────────────────────── */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b shadow-sm h-14 flex items-center justify-between px-4">
-        <Link href="/" className="text-xl font-bold text-slate-900">7jwzat</Link>
+        <Link href="/" className="text-xl font-bold text-slate-900">Sajjel</Link>
         <button
           onClick={() => setMobileOpen(o => !o)}
           aria-label="Toggle navigation menu"

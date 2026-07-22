@@ -46,7 +46,7 @@ export default function ResetPasswordPage() {
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
         <div className="flex justify-end mb-2"><LanguageToggle /></div>
         <div className="text-center mb-8">
-          <Link href="/" className="text-3xl font-bold text-slate-900">7jwzat</Link>
+          <Link href="/" className="text-3xl font-bold text-slate-900">Sajjel</Link>
           <p className="text-gray-500 mt-1">{t("rp.title")}</p>
         </div>
 

@@ -81,7 +81,7 @@ export async function sendCustomerEmail(opts: {
       <p style="color:#9ca3af;font-size:11px;margin:4px 0 0">Please keep this email for your records. We look forward to seeing you!</p>
     </div>
     <div style="background:#f9fafb;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb">
-      <p style="color:#9ca3af;font-size:12px;margin:0">Powered by 7jwzat &middot; نظام الحجز الذكي</p>
+      <p style="color:#9ca3af;font-size:12px;margin:0">Powered by Sajjel &middot; نظام الحجز الذكي</p>
     </div>
   </div>
 </body>
@@ -165,7 +165,7 @@ export async function sendOwnerEmail(opts: {
       </a>
     </div>
     <div style="background:#f9fafb;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb">
-      <p style="color:#9ca3af;font-size:12px;margin:0">Powered by 7jwzat &middot; نظام الحجز الذكي</p>
+      <p style="color:#9ca3af;font-size:12px;margin:0">Powered by Sajjel &middot; نظام الحجز الذكي</p>
     </div>
   </div>
 </body>

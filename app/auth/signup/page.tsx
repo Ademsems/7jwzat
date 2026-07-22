@@ -105,7 +105,7 @@ export default function SignupPage() {
         <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-lg">
           <div className="flex justify-end mb-2"><LanguageToggle /></div>
           <div className="text-center mb-6">
-            <Link href="/" className="text-3xl font-bold text-slate-900">7jwzat</Link>
+            <Link href="/" className="text-3xl font-bold text-slate-900">Sajjel</Link>
             <p className="text-gray-500 mt-1 text-sm">{t("signup.step1")}</p>
           </div>
 
@@ -156,7 +156,7 @@ export default function SignupPage() {
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
         <div className="flex justify-end mb-2"><LanguageToggle /></div>
         <div className="text-center mb-6">
-          <Link href="/" className="text-3xl font-bold text-slate-900">7jwzat</Link>
+          <Link href="/" className="text-3xl font-bold text-slate-900">Sajjel</Link>
           <p className="text-gray-500 mt-1 text-sm">{t("signup.step2")}</p>
         </div>
 
