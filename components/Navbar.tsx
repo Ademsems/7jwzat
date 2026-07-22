@@ -56,11 +56,11 @@ export function Navbar() {
   return (
     <header className={headerClass}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-        {/* Logo — Arabic renders حجوزات with 7jwzat alongside for recognition */}
+        {/* Logo — Arabic renders سجّل with Sajjel alongside for recognition */}
         <Link href="/" className="flex items-baseline gap-2 hover:text-emerald-700 transition-colors">
           <span className="text-xl font-bold text-slate-900 tracking-tight">{t("brand.logo")}</span>
           {locale === "ar" && (
-            <span className="text-xs font-semibold text-slate-400 tracking-wide">7jwzat</span>
+            <span className="text-xs font-semibold text-slate-400 tracking-wide">Sajjel</span>
           )}
         </Link>
 

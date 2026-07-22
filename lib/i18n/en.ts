@@ -484,7 +484,7 @@ export const en: Record<string, string> = {
   "rp.updating": "Updating...",
 
   // ═══ MARKETING SITE ═══
-  "brand.logo": "7jwzat",
+  "brand.logo": "Sajjel",
 
   // Nav
   "m.nav.how": "How It Works",
@@ -554,7 +554,7 @@ export const en: Record<string, string> = {
   "m.faq.title": "Questions?",
   "m.faq.sub": "Common things people ask before signing up.",
   "m.faq.q1": "Is it really free?",
-  "m.faq.a1": "Yes. 7jwzat is completely free during our launch year — every feature, no credit card, no hidden limits. We'd rather earn your trust first.",
+  "m.faq.a1": "Yes. Sajjel is completely free during our launch year — every feature, no credit card, no hidden limits. We'd rather earn your trust first.",
   "m.faq.q2": "Will it stay free?",
   "m.faq.a2": "Paid plans will arrive eventually, but businesses that join during the launch year become founding businesses and keep special lifetime pricing. Joining early pays off.",
   "m.faq.q3": "Can customers pay online?",
@@ -562,17 +562,17 @@ export const en: Record<string, string> = {
   "m.faq.q4": "How many bookings can I take?",
   "m.faq.a4": "Unlimited. There are no booking caps — take as many appointments as your schedule allows.",
   "m.faq.q5": "Do you support Arabic?",
-  "m.faq.a5": "Yes — 7jwzat is Arabic-first with full right-to-left support, and you can switch to English anytime. Your booking page works in both.",
+  "m.faq.a5": "Yes — Sajjel is Arabic-first with full right-to-left support, and you can switch to English anytime. Your booking page works in both.",
   "m.faq.q6": "Which countries do you support?",
   "m.faq.a6": "We're launching in Jordan first. Expansion across the region is coming — tell us where you are and we'll keep you posted.",
   "m.faq.q7": "How do customers find my booking page?",
   "m.faq.a7": "You get your own link and a QR code. Share it on Google, your Instagram bio, or WhatsApp, or print the code for your front desk.",
   "m.faq.q8": "Is there support if I need help?",
-  "m.faq.a8": "Absolutely. Reach us anytime on WhatsApp or at support@7jwzat.com — we're a small team and we answer personally.",
+  "m.faq.a8": "Absolutely. Reach us anytime on WhatsApp or at support@sajjel.online — we're a small team and we answer personally.",
 
   // Final CTA
   "m.cta.title": "Ready to get your first online booking?",
-  "m.cta.sub": "Join the first businesses in Jordan getting set up on 7jwzat.",
+  "m.cta.sub": "Join the first businesses in Jordan getting set up on Sajjel.",
   "m.cta.button": "Start Free — takes 2 minutes",
   "m.cta.prompt": "Have a question before signing up?",
   "m.cta.sent": "Thanks! We'll be in touch soon.",
@@ -586,22 +586,22 @@ export const en: Record<string, string> = {
   "m.footer.terms": "Terms of Service",
   "m.footer.contact": "Contact",
   "m.footer.signIn": "Sign in",
-  "m.footer.rights": "© 2026 7jwzat. All rights reserved.",
+  "m.footer.rights": "© 2026 Sajjel. All rights reserved.",
 
   // Privacy
   "m.privacy.back": "Back to home",
   "m.privacy.title": "Privacy Policy",
   "m.privacy.updated": "Last updated: January 2026",
-  "m.privacy.p1": "7jwzat collects only the information necessary to run the booking service: business owner email, business name, and customer booking details (name, email, phone, appointment info).",
+  "m.privacy.p1": "Sajjel collects only the information necessary to run the booking service: business owner email, business name, and customer booking details (name, email, phone, appointment info).",
   "m.privacy.p2": "Customer data is used only to facilitate bookings and send confirmation emails. We do not sell or share your data with third parties beyond what is needed to operate the service (e.g., email delivery).",
-  "m.privacy.p3": "Business owners can delete their account and all associated data at any time by contacting support@7jwzat.com.",
+  "m.privacy.p3": "Business owners can delete their account and all associated data at any time by contacting support@sajjel.online.",
   "m.legal.contactPrefix": "For questions, contact us at",
 
   // Terms
   "m.terms.title": "Terms of Service",
-  "m.terms.p1": "By using 7jwzat, you agree to use the service lawfully and in accordance with these terms.",
-  "m.terms.p2": "7jwzat provides a software platform for appointment booking. We are not responsible for the quality of services provided by businesses listed on the platform, or for disputes between businesses and their customers.",
-  "m.terms.p3": "7jwzat is free during our launch year. When paid plans are introduced, we'll give clear notice in advance, and founding businesses keep special lifetime pricing.",
+  "m.terms.p1": "By using Sajjel, you agree to use the service lawfully and in accordance with these terms.",
+  "m.terms.p2": "Sajjel provides a software platform for appointment booking. We are not responsible for the quality of services provided by businesses listed on the platform, or for disputes between businesses and their customers.",
+  "m.terms.p3": "Sajjel is free during our launch year. When paid plans are introduced, we'll give clear notice in advance, and founding businesses keep special lifetime pricing.",
   "m.terms.p4": "We reserve the right to suspend accounts that violate these terms or engage in abusive behavior.",
 
   // Hero mockup — currency-aware parts

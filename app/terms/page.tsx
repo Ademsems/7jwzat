@@ -23,7 +23,7 @@ export default function TermsPage() {
             <p>{t("m.terms.p3")}</p>
             <p>{t("m.terms.p4")}</p>
             <p>{t("m.legal.contactPrefix")}{" "}
-              <a href="mailto:support@7jwzat.com" className="text-emerald-600 hover:underline">support@7jwzat.com</a>.
+              <a href="mailto:support@sajjel.online" className="text-emerald-600 hover:underline">support@sajjel.online</a>.
             </p>
           </div>
         </div>

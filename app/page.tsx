@@ -443,8 +443,8 @@ export default function Home() {
               )}
               <p className="text-slate-600 text-sm mt-4">
                 {t("m.cta.orEmail")}{" "}
-                <a href="mailto:support@7jwzat.com" className="text-slate-400 hover:text-white transition-colors underline">
-                  support@7jwzat.com
+                <a href="mailto:support@sajjel.online" className="text-slate-400 hover:text-white transition-colors underline">
+                  support@sajjel.online
                 </a>
               </p>
             </div>
@@ -459,14 +459,14 @@ export default function Home() {
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-3">
                 <span className="text-white font-bold text-lg">{t("brand.logo")}</span>
-                {locale === "ar" && <span className="text-xs text-slate-600">7jwzat</span>}
+                {locale === "ar" && <span className="text-xs text-slate-600">Sajjel</span>}
                 <span className="text-slate-700">·</span>
                 <span className="text-sm">{t("m.footer.tagline")}</span>
               </div>
               <nav className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-sm">
                 <Link href="/privacy"    className="hover:text-slate-300 transition-colors">{t("m.footer.privacy")}</Link>
                 <Link href="/terms"      className="hover:text-slate-300 transition-colors">{t("m.footer.terms")}</Link>
-                <a href="mailto:support@7jwzat.com" className="hover:text-slate-300 transition-colors">{t("m.footer.contact")}</a>
+                <a href="mailto:support@sajjel.online" className="hover:text-slate-300 transition-colors">{t("m.footer.contact")}</a>
                 <Link href="/auth/login" className="hover:text-slate-300 transition-colors">{t("m.footer.signIn")}</Link>
               </nav>
             </div>

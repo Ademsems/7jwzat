@@ -398,3 +398,68 @@ Append new dated entries at the **bottom**. Do not edit or delete past entries.
   over geo on the next visit.
 - Verified: `AE`→English+AED, `JO`→Arabic+JOD, `SA`→Arabic+SAR, no header→Arabic+JOD;
   manual overrides win; no overflow at 375px RTL/LTR; no console or hydration errors.
+
+### 2026-07-22 — Rebrand: 7jwzat → Sajjel (marketing scope + shared i18n/layout)
+
+Executed the marketing-side portion of the 7jwzat → Sajjel rebrand. Core-app-only files
+(`lib/email.ts`, `components/DashboardNav.tsx`, `app/auth/**`, `app/dashboard/**`,
+`app/api/**`, `CLAUDE.md`) were left untouched — the core-app session owns those.
+Storage/cookie key strings (`7jwzat-lang`, `7jwzat-geo-country`, `7jwzat-currency` in
+`app/layout.tsx`'s pre-hydration script, `LanguageProvider.tsx`, `middleware.ts`) were
+also left as-is — they are internal identifiers, invisible to users, and renaming them
+would be a breaking change for existing visitors' persisted choices.
+
+**Latin "7jwzat" → "Sajjel":**
+- `components/Navbar.tsx` — Arabic-view Latin subtext next to the wordmark; updated
+  the adjacent code comment for accuracy.
+- `app/page.tsx` — footer Latin subtext next to the wordmark; footer `support@7jwzat.com`
+  mailto (both instances) → `support@sajjel.online`.
+- `app/privacy/page.tsx`, `app/terms/page.tsx` — `support@7jwzat.com` → `support@sajjel.online`.
+- `app/layout.tsx` — `<title>` and OpenGraph `title` ("7jwzat حجوزات" → "Sajjel سجّل").
+- `lib/i18n/en.ts` — `brand.logo`, plus every English `m.*` string that named the brand
+  or the support email (`m.faq.a1`, `m.faq.a5`, `m.faq.a8`, `m.cta.sub`,
+  `m.footer.rights`, `m.privacy.p1`, `m.privacy.p3`, `m.terms.p1`, `m.terms.p2`,
+  `m.terms.p3`).
+- `package.json` — `name` field, `"7jwzat"` → `"sajjel"` (cosmetic, optional per scope).
+
+**Arabic brand word "حجوزات" → "سجّل" — brand-name instances only** (full list, for
+founder review; placeholder-MSA rule otherwise unchanged — no other Arabic copy was
+reworded):
+- `lib/i18n/ar.ts` `brand.logo`: `"حجوزات"` → `"سجّل"`
+- `lib/i18n/ar.ts` `m.faq.a1`: "نعم. حجوزات مجاني بالكامل..." → "نعم. سجّل مجاني بالكامل..."
+- `lib/i18n/ar.ts` `m.faq.a5`: "نعم — حجوزات عربي أولاً..." → "نعم — سجّل عربي أولاً..."
+- `lib/i18n/ar.ts` `m.cta.sub`: "...التي تبدأ مع حجوزات." → "...التي تبدأ مع سجّل."
+- `lib/i18n/ar.ts` `m.footer.rights`: "© 2026 حجوزات." → "© 2026 سجّل."
+- `lib/i18n/ar.ts` `m.privacy.p1`: first occurrence only — "لا يجمع حجوزات سوى..." →
+  "لا يجمع سجّل سوى..." — the second occurrence in the same string ("وتفاصيل حجوزات
+  الزبائن" = "customer bookings") is the generic noun and was deliberately left unchanged.
+- `lib/i18n/ar.ts` `m.terms.p1`: "باستخدامك حجوزات، فإنك..." → "باستخدامك سجّل، فإنك..."
+- `lib/i18n/ar.ts` `m.terms.p2`: "يوفّر حجوزات منصّة برمجية..." → "يوفّر سجّل منصّة برمجية..."
+- `lib/i18n/ar.ts` `m.terms.p3`: "حجوزات مجاني خلال سنة الإطلاق." → "سجّل مجاني خلال سنة الإطلاق."
+- `components/Navbar.tsx` Arabic-view Latin subtext (not Arabic script, listed above under
+  Latin swaps): the wordmark itself renders via `brand.logo` (now "سجّل") with "Sajjel"
+  alongside for recognition, matching the pre-existing bilingual pattern.
+
+**Explicitly left as the generic noun "bookings," not touched** (verified by grep after
+the edit — none of these read as the brand name in context): `m.hero.title1`, `m.hero.sub`,
+`m.how.title`, `m.feat.1.title`, `m.feat.5.desc`, `m.feat.6.desc`, `m.price.f1`,
+`m.faq.q4`/`m.faq.a4`, `m.privacy.p1`'s second occurrence, `m.privacy.p2`, plus all
+non-marketing dashboard strings (`nav.bookings`, `dash.*`, `bk.*`, `cust.*`, `an.*`,
+`tip.*`, etc.) which are core-app scope and were not touched.
+
+**Support email:** `support@7jwzat.com` → `support@sajjel.online` everywhere in marketing
+copy. This is a placeholder address — Resend domain verification for `sajjel.online` is
+still pending per §9/`CLAUDE.md` §5.9; the inbox itself is not yet configured. The address
+now reads correctly on the site; actual mail delivery is a separate, deferred concern.
+
+**Verified locally:** `npx tsc --noEmit` clean; dev server compiled with no errors;
+homepage (AR default and EN toggle), `/privacy`, and `/terms` all render the new brand
+correctly in both locales; generic "bookings" Arabic copy unchanged and reads correctly;
+no console errors; no RTL/hydration flash observed.
+
+**Not changed / flagged for follow-up:**
+- `next.config.js` Sentry `org: "7jwzat"` — left alone; this is a live Sentry org slug,
+  not display copy, and changing it without renaming the actual Sentry org first would
+  break source-map uploads. Core-app/shared-config concern.
+- No `sitemap.xml`, `robots.txt`, canonical URL, or `metadataBase` exist yet (per §9
+  "SEO" gap) — none were introduced by this task.
