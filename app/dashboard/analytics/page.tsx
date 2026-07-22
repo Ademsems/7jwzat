@@ -51,15 +51,11 @@ function localDate(dt: Date): string {
 function getDateRange(r: RangeKey): { start: string; end: string } {
   const now = new Date();
   const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
-  // End boundary always extends to the last day of the current month so that
-  // bookings already scheduled later this month (typically pending/confirmed,
-  // not yet completed) aren't cut off — using "today" here silently dropped them.
-  const endOfThisMonth = localDate(new Date(y, m + 1, 0));
   switch (r) {
-    case "this-month":    return { start: localDate(new Date(y, m, 1)),      end: endOfThisMonth };
-    case "last-month":    return { start: localDate(new Date(y, m - 1, 1)),  end: localDate(new Date(y, m, 0)) };
-    case "last-3-months": return { start: localDate(new Date(y, m - 3, d)),  end: endOfThisMonth };
-    case "last-6-months": return { start: localDate(new Date(y, m - 6, d)),  end: endOfThisMonth };
+    case "this-month":    return { start: localDate(new Date(y, m, 1)),      end: localDate(new Date(y, m, d))     };
+    case "last-month":    return { start: localDate(new Date(y, m - 1, 1)),  end: localDate(new Date(y, m, 0))     };
+    case "last-3-months": return { start: localDate(new Date(y, m - 3, d)),  end: localDate(new Date(y, m, d))     };
+    case "last-6-months": return { start: localDate(new Date(y, m - 6, d)),  end: localDate(new Date(y, m, d))     };
   }
 }
 
