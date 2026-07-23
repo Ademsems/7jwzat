@@ -608,6 +608,19 @@ export const en: Record<string, string> = {
   "tags.editName": "Edit tag name",
   "tags.removeTag": "Remove tag",
 
+  // Public cancel-booking page (app/cancel)
+  "cancel.pageTitle": "Cancel Your Booking",
+  "cancel.invalidToken": "This cancellation link is invalid.",
+  "cancel.expiredToken": "This cancellation link has expired.",
+  "cancel.usedToken": "This booking has already been cancelled using this link.",
+  "cancel.alreadyCancelled": "This booking has already been cancelled.",
+  "cancel.alreadyCompleted": "This appointment has already taken place and can no longer be cancelled.",
+  "cancel.detailsTitle": "Your Booking",
+  "cancel.confirmButton": "Cancel My Booking",
+  "cancel.confirming": "Cancelling…",
+  "cancel.cancelledTitle": "Your booking has been cancelled",
+  "cancel.cancelledBody": "We're sorry to see you go. Feel free to book again anytime.",
+
   // Signup
   "signup.step1": "Step 1 of 2 — What type of business do you run?",
   "signup.step2": "Step 2 of 2 — Your account details",

@@ -10,6 +10,8 @@ export async function POST(req: NextRequest) {
       bookingDate, bookingTime,
       businessName, ownerEmail,
       currency, locale,
+      // Cancel link — customer email only, never sent to the owner.
+      cancelUrl,
     } = body;
 
     // Fire both emails in parallel — don't let failures block response
@@ -17,7 +19,7 @@ export async function POST(req: NextRequest) {
       sendCustomerEmail({
         customerName, customerEmail, serviceName,
         duration, price, bookingDate, bookingTime, businessName,
-        currency, locale,
+        currency, locale, cancelUrl,
       }),
       sendOwnerEmail({
         ownerEmail, customerName, customerEmail, customerPhone, notes,

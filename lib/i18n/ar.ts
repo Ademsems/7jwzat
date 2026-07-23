@@ -609,6 +609,19 @@ export const ar: Record<string, string> = {
   "tags.editName": "تعديل اسم الوسم",
   "tags.removeTag": "إزالة الوسم",
 
+  // Public cancel-booking page — PLACEHOLDER ARABIC (pending founder review)
+  "cancel.pageTitle": "إلغاء حجزك",
+  "cancel.invalidToken": "رابط الإلغاء هذا غير صالح.",
+  "cancel.expiredToken": "انتهت صلاحية رابط الإلغاء هذا.",
+  "cancel.usedToken": "تم إلغاء هذا الحجز مسبقاً باستخدام هذا الرابط.",
+  "cancel.alreadyCancelled": "تم إلغاء هذا الحجز مسبقاً.",
+  "cancel.alreadyCompleted": "تم هذا الموعد بالفعل ولا يمكن إلغاؤه.",
+  "cancel.detailsTitle": "حجزك",
+  "cancel.confirmButton": "إلغاء حجزي",
+  "cancel.confirming": "جارٍ الإلغاء…",
+  "cancel.cancelledTitle": "تم إلغاء حجزك",
+  "cancel.cancelledBody": "يؤسفنا ذلك. يمكنك الحجز مرة أخرى في أي وقت.",
+
   // Signup
   "signup.step1": "الخطوة 1 من 2 — ما نوع نشاطك؟",
   "signup.step2": "الخطوة 2 من 2 — تفاصيل حسابك",

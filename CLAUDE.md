@@ -76,6 +76,12 @@ app/
 │                                  date/time → fill custom fields → confirm. Calls
 │                                  /api/create-booking then /api/send-booking-emails.
 │
+├── cancel/page.tsx             PUBLIC cancel-booking page (no auth). Reads ?token=, calls
+│                               GET /api/cancel-booking for a preview, POST on confirm.
+│                               Defaults to the business's own language (derived from
+│                               `country`, same rule as LanguageProvider) unless the visitor
+│                               already made an explicit language choice. See §9 changelog.
+│
 └── dashboard/
     ├── layout.tsx              Wraps all dashboard pages with DashboardNav sidebar
     ├── page.tsx                Home: stats, booking link, `Calendar` block (week view), quick links
@@ -105,7 +111,8 @@ app/
 | `/api/create-booking` | POST | Service-role (public) | Upserts customer profile, re-checks the request against `day_notes` (the real block-enforcement boundary — see §9), checks for conflicts, inserts booking, saves custom field answers |
 | `/api/day-notes` | GET / POST / DELETE | **Authenticated** (anon key + session cookies, same pattern as `/api/analytics`) | Owner-only CRUD for `day_notes` (per-day notes + block-outs). GET accepts optional `start`/`end`; POST upserts one row per `business_id`+`date` (`onConflict`), and deletes the row outright if both note and block are cleared; DELETE clears by `date`. RLS (`business_id = auth.uid()`) is the tenant-isolation boundary. |
 | `/api/group-sessions` | GET | Service-role (public) | Returns upcoming group sessions with live booked-count for a service |
-| `/api/send-booking-emails` | POST | None (called server-side) | Fires customer confirmation + owner notification emails via Resend |
+| `/api/send-booking-emails` | POST | None (called server-side) | Fires customer confirmation + owner notification emails via Resend; accepts an optional `cancelUrl`, forwarded to `sendCustomerEmail` only, never `sendOwnerEmail` |
+| `/api/cancel-booking` | GET / POST | Service-role (public) | Powers `app/cancel/page.tsx`. GET re-validates a `?token=` and returns a booking preview + a country-derived `defaultLocale`; POST re-validates again, atomically marks the token used (`used_at IS NULL` guard), sets the booking `status` to `cancelled`, and fires an owner cancellation email. Service-role is used for both verbs — not just the writes — because the preview needs owner-scoped `bookings`/`services`/`users` rows an anon client can't read, and because `booking_cancel_tokens` writes are service-role-only by design (see §4). |
 | `/api/analytics` | GET | **Authenticated** (anon key + session cookies, NOT service-role) | Tenant-scoped analytics data layer. Auth via `@supabase/ssr` reading the caller's session cookies (same pattern as `middleware.ts`); every query runs through the anon-key client so RLS enforces tenant isolation even if a `.eq("user_id", …)` filter were ever dropped. Query params `start`/`end`/`prevStart`/`prevEnd` (all `YYYY-MM-DD`); returns raw, unaggregated rows (bookings, services, staff, customers, all-time booking history) so new dashboard sections can derive their own breakdowns without a route change. |
 
 ### Key Library Modules (`lib/`)
@@ -113,7 +120,7 @@ app/
 | Module | Purpose |
 |---|---|
 | `lib/supabase.ts` | Lazy-initialized browser Supabase singleton (Proxy pattern to avoid build-time crash when env vars absent) |
-| `lib/email.ts` | `sendCustomerEmail` + `sendOwnerEmail` via Resend. Bilingual (Arabic primary, English secondary). Lazily constructs Resend client to avoid build failures. |
+| `lib/email.ts` | `sendCustomerEmail` + `sendOwnerEmail` via Resend. Bilingual (Arabic primary, English secondary). Lazily constructs Resend client to avoid build failures. `sendCustomerEmail` takes an optional `cancelUrl` — when present, renders a "Cancel this booking" button + 7-day-expiry note; when absent, the button is omitted entirely rather than shown broken. `sendOwnerCancellationEmail` (separate function) notifies the owner when a customer self-cancels via `/cancel`. |
 | `lib/currency.ts` | `COUNTRIES` list (Jordan first), `formatPrice(amount, currency)`, `DEFAULT_CURRENCY = "JOD"`, `currencyForCountry()` |
 | `lib/slug.ts` | `slugifyBusinessName()` + `bookingUrl()` — deterministic slug from business name |
 | `lib/analyticsRange.ts` | `computeRange(key, customStart?, customEnd?)` — timezone-safe date-range + comparison-period math for the analytics page (`this-week` / `this-month` / `last-30` / `last-90` / `custom`). Builds dates from local `Date` field getters only, never `toISOString()`, and range ends are always the true end of the period (not "today") so later-dated bookings already on the books aren't dropped. |
@@ -282,6 +289,23 @@ custom_field_id  uuid  FK → custom_fields.id
 answer           text
 ```
 RLS: assumed owner-scoped via booking.user_id join — **verify this policy exists**.
+
+### `booking_cancel_tokens`
+```
+id          uuid  PK
+booking_id  uuid  FK → bookings.id
+token       text  UNIQUE  DEFAULT encode(gen_random_bytes(32), 'hex')
+used_at     timestamptz  nullable  (set once, atomically guarded — see /api/cancel-booking)
+expires_at  timestamptz  DEFAULT now() + interval '7 days'
+created_at  timestamptz
+```
+RLS: anonymous SELECT allowed (the token itself is the secret — this is what lets
+`/api/cancel-booking` validate by token alone), but INSERT/UPDATE are service-role only.
+Verified directly via anon-key curl: SELECT → 200, INSERT → 401 row-level security violation.
+Written by `/api/create-booking` (non-fatal — if token creation fails, the booking still
+succeeds and the confirmation email is simply sent without a cancel button) and by
+`/api/cancel-booking` (marks `used_at`). Table created directly in Supabase by the project
+owner — Claude sessions never had DDL access here.
 
 ### `day_notes`
 ```
@@ -576,6 +600,7 @@ NOTIFY pgrst, 'reload schema';
 ```
 
 | 2026-07-24 — Customer CRM tags | `customer_tags` (id, business_id, name, color, created_at) and `customer_tag_assignments` (id, business_id, customer_id, tag_id, created_at) — both created directly by the project owner in Supabase; Claude sessions never had DDL access to these either. Followed the simpler, more common pattern for owner-scoped CRUD already used by `services`/`staff`/`customers` (direct Supabase calls with RLS as the boundary), not the newer authenticated-API-route pattern (`/api/analytics`, `/api/day-notes`) — there's no public-facing or cross-context need here, unlike those two. **Management** lives at `app/dashboard/customers/tags/page.tsx`, linked from a "Manage Tags" link on the customers list header (not added to `DashboardNav.tsx` — reachable "from the customer section" per the task, not promoted to a top-level nav item): create (name + one of 10 fixed palette colors, `TAG_COLOR_PALETTE` in `components/TagPill.tsx`, no free-form hex), inline click-to-rename (same pattern as the day-note editor's textarea — click text → input → save on blur/Enter), click-a-swatch recolor, delete with a confirm dialog, and a live per-tag customer count. Delete is an explicit two-step delete (assignments for that `tag_id`, then the tag row) rather than relying on an assumed `ON DELETE CASCADE`, since that DDL wasn't written by this session — verified directly against real data that both steps fire correctly and a customer's *other* tag is left untouched. **Assignment** happens on the customer detail page: pills with a `✕` remove button, plus a `<select>` of not-yet-assigned tags that inserts immediately on choose (no save button, per the task) — the dropdown is hidden and replaced with "all tags assigned" text once every tag is applied, and with a link to the management page if the business has no tags at all yet. **List + filter**: the customers list now fetches all tags/assignments alongside its existing customers/bookings queries, shows up to 3 pills inline (2 + a "+N more" count above that, via one `tags.moreCount` template key), and gained a tag multi-select filter (same click-outside dropdown component as the bookings page's status filter) that's AND-combined with the existing name/phone search — a customer must carry *every* selected tag, verified directly: two real customers, one carrying both test tags and one carrying only one, filtering by both tags matched only the first. A single "Clear filters" control covers both search and tag filters. **Seeding**: `app/auth/signup/page.tsx` inserts "VIP" (`#F59E0B`) and "Problematic" (`#EF4444`) right after the existing default-business-hours insert, same non-fatal try/catch pattern — new businesses only, by construction (nothing retroactively touches existing tenants). Tag names are literal, untranslated starter data the owner can rename freely, matching the existing "custom field labels are owner-authored, never translated" convention. **Verified**: RLS confirmed directly — a cross-tenant insert (real session, fabricated `business_id`) was rejected 403, and reading another business's tags by explicit `business_id` filter returned `[]`. New strings: `tags.*` (16 keys) + one `cust.noMatch` key. No existing keys modified. |
+| 2026-07-23 — Secure cancel-booking link in confirmation email | `booking_cancel_tokens` (id, booking_id, token, used_at, expires_at, created_at — see §4) created directly by the project owner in Supabase; anonymous SELECT is allowed by RLS (the token is the secret) but INSERT/UPDATE are service-role only, confirmed directly via anon-key curl (SELECT → 200, INSERT → 401 RLS violation). **Token creation**: `/api/create-booking` now captures the new row's id via `.select("id").single()` on insert (also let the custom-field-answers step reuse that id directly instead of its old separate lookup-by-date/time/email query) and, as a non-blocking final step, inserts a `booking_cancel_tokens` row; any failure is logged and swallowed — the booking always succeeds regardless, per the task, just without a cancel button in that one email. **Email**: `sendCustomerEmail` gained an optional `cancelUrl` that renders a "Cancel this booking" button + a 7-day-expiry note when present, and is omitted (not shown broken) when absent; `cancelUrl` is threaded through `/api/send-booking-emails` into `sendCustomerEmail` only, never into `sendOwnerEmail` — the owner email is unchanged. **Cancel flow**: new `GET/POST /api/cancel-booking` (service-role, public, no auth) and public `app/cancel/page.tsx` (`?token=`, wrapped in `<Suspense>` per the `useSearchParams()` requirement, same pattern as `app/auth/login/page.tsx`). **Design deviation from the literal task wording**: the task described the preview fetch as using "the anon client," but `bookings`/`services`/`users` are owner-scoped tables an anonymous client cannot read at all — so `GET /api/cancel-booking` does the validation *and* the joined-preview fetch server-side with the service-role key instead, returning only the display fields the page needs (customer name, service, date/time, business name, WhatsApp number), never raw booking/business rows. Both GET and POST independently re-validate the token from scratch (existence → not used → not expired → booking not already cancelled/completed) — the client's own state is never trusted. POST marks the token used via an atomic guarded update (`.eq("id", tokenId).is("used_at", null)`), so two near-simultaneous cancellation attempts on the same link can't both succeed; only the request that flips `used_at` proceeds to update the booking status and notify the owner (new `sendOwnerCancellationEmail`, mirroring `sendOwnerEmail`'s bilingual red-themed styling), the other gets the "already used" state. **Locale default**: `GET` derives `defaultLocale` from `business.country` using the same AE→English/else→Arabic rule as `LanguageProvider.tsx`, applied client-side only if the visitor has no explicit `localStorage["7jwzat-lang"]` choice already — explicit choice always wins, matching `LanguageProvider`'s own priority order. **Verified end-to-end against the live local dev server and a real test booking** (not just traced): submitted a real booking through `/book/salon-test`, confirmed the `booking_cancel_tokens` row was created with a 7-day `expires_at`; opened the real `/cancel?token=…` link and confirmed the preview rendered correct booking details in both the visitor's already-chosen language (EN, explicit-choice-wins case) and, after clearing that choice, the business's own default (AR/RTL, `dir="rtl"` confirmed via the live DOM); clicked through to cancellation and confirmed via a direct service-role read that `bookings.status` became `"cancelled"` and the token's `used_at` was set; re-opened the same link and got the "already cancelled" friendly error; opened a fabricated token and got the "invalid" friendly error; created and expired a second real token and got the "expired" friendly error; confirmed zero console/server errors throughout. The WhatsApp button correctly did not render for the "salon test" business, which has no `whatsapp_number` set. All test bookings/customers/tokens created for verification were deleted afterward via service-role calls. New strings: `cancel.*` (11 keys). No existing keys modified. |
 
 ---
 
@@ -591,4 +616,4 @@ See `CONTRIBUTING.md` for the full guide. Summary:
 
 ---
 
-*Last updated: 2026-07-22. Reflects codebase at commit `d4c7ad2`.*
+*Last updated: 2026-07-23. Reflects codebase at commit `d4c7ad2` plus the cancel-booking-link feature (uncommitted at time of writing).*

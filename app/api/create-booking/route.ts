@@ -12,7 +12,9 @@ import { isTimeBlockedByDayNote } from "@/lib/dayNoteActions";
  *      (day_notes) — the real enforcement boundary, not just a UI hide.
  *   3. Check for double-booking (1-on-1) or capacity (group)
  *   4. Insert the booking with customer_id, staff_id, staff_preference
- *   5. Fire confirmation emails (non-blocking)
+ *   5. Save custom field answers (non-blocking)
+ *   6. Create a booking_cancel_tokens row (non-blocking — see §6 below)
+ *   7. Fire confirmation emails (non-blocking), including the cancel link
  */
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -158,27 +160,32 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 4. Insert booking ──────────────────────────────────────────────────────
-  const { error: insErr } = await supabase.from("bookings").insert({
-    user_id:          businessId,
-    service_id:       serviceId,
-    group_session_id: groupSessionId ?? null,
-    customer_id:      customerId,
-    customer_name:    customerName,
-    customer_email:   customerEmail,
-    customer_phone:   customerPhone,
-    notes:            notes || null,
-    booking_date:     bookingDate,
-    booking_time:     bookingTime,
-    status:           "pending",
-    booking_type:     "customer",
-    staff_id:         staffId   ?? null,
-    staff_preference: staffPreference ?? "any",
-  });
+  const { data: newBooking, error: insErr } = await supabase
+    .from("bookings")
+    .insert({
+      user_id:          businessId,
+      service_id:       serviceId,
+      group_session_id: groupSessionId ?? null,
+      customer_id:      customerId,
+      customer_name:    customerName,
+      customer_email:   customerEmail,
+      customer_phone:   customerPhone,
+      notes:            notes || null,
+      booking_date:     bookingDate,
+      booking_time:     bookingTime,
+      status:           "pending",
+      booking_type:     "customer",
+      staff_id:         staffId   ?? null,
+      staff_preference: staffPreference ?? "any",
+    })
+    .select("id")
+    .single();
 
-  if (insErr) {
-    console.error("create-booking insert error:", insErr.message);
-    return NextResponse.json({ error: insErr.message }, { status: 500 });
+  if (insErr || !newBooking) {
+    console.error("create-booking insert error:", insErr?.message);
+    return NextResponse.json({ error: insErr?.message ?? "Failed to create booking" }, { status: 500 });
   }
+  const bookingId = newBooking.id as string;
 
   // ── 5. Save custom field answers (non-blocking — never block booking) ────────
   try {
@@ -187,36 +194,42 @@ export async function POST(req: NextRequest) {
       Array.isArray(customFieldAnswers) &&
       customFieldAnswers.length > 0
     ) {
-      // Get the id of the booking we just inserted
-      const { data: newBooking } = await supabase
-        .from("bookings")
-        .select("id")
-        .eq("user_id", businessId)
-        .eq("booking_date", bookingDate ?? null)
-        .eq("booking_time", bookingTime ?? null)
-        .eq("customer_email", customerEmail)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (newBooking?.id) {
-        const rows = (customFieldAnswers as { customFieldId: string; answer: string }[])
-          .filter(a => a.answer && a.answer.trim())
-          .map(a => ({
-            booking_id:      newBooking.id,
-            custom_field_id: a.customFieldId,
-            answer:          a.answer.trim(),
-          }));
-        if (rows.length > 0) {
-          await supabase.from("custom_field_answers").insert(rows);
-        }
+      const rows = (customFieldAnswers as { customFieldId: string; answer: string }[])
+        .filter(a => a.answer && a.answer.trim())
+        .map(a => ({
+          booking_id:      bookingId,
+          custom_field_id: a.customFieldId,
+          answer:          a.answer.trim(),
+        }));
+      if (rows.length > 0) {
+        await supabase.from("custom_field_answers").insert(rows);
       }
     }
   } catch (cfErr) {
     console.error("create-booking: custom field answers save failed (non-fatal):", cfErr);
   }
 
-  // ── 6. Fire confirmation emails (non-blocking) ─────────────────────────────
+  // ── 6. Create a cancel token (non-blocking — the booking matters more than
+  // the cancel link; token/expiry are DB-generated defaults, we just read
+  // the value back). Service-role only — RLS blocks anon insert on this table. ──
+  let cancelUrl: string | null = null;
+  try {
+    const { data: tokenRow, error: tokenErr } = await supabase
+      .from("booking_cancel_tokens")
+      .insert({ booking_id: bookingId })
+      .select("token")
+      .single();
+    if (tokenErr) {
+      console.error("create-booking: cancel token insert failed (non-fatal):", tokenErr.message);
+    } else if (tokenRow?.token) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+      cancelUrl = `${baseUrl}/cancel?token=${tokenRow.token}`;
+    }
+  } catch (tokenErr) {
+    console.error("create-booking: cancel token insert failed (non-fatal):", tokenErr);
+  }
+
+  // ── 7. Fire confirmation emails (non-blocking) ─────────────────────────────
   const origin = new URL(req.url).origin;
   fetch(`${origin}/api/send-booking-emails`, {
     method: "POST",
@@ -235,6 +248,7 @@ export async function POST(req: NextRequest) {
       ownerEmail,
       currency,
       locale,
+      cancelUrl,
     }),
   }).catch(e => console.error("Email dispatch failed:", e));
 
