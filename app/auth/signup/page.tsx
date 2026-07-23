@@ -89,6 +89,19 @@ export default function SignupPage() {
           console.error("signup: default hours insert failed (non-fatal):", hoursErr);
         }
 
+        // Seed two starter customer tags (new businesses only — never
+        // retroactively applied to existing ones). Names are owner-editable
+        // starter data, not translated UI chrome, same convention as custom
+        // field labels — deliberately literal English regardless of locale.
+        try {
+          await supabase.from("customer_tags").insert([
+            { business_id: data.user!.id, name: "VIP", color: "#F59E0B" },
+            { business_id: data.user!.id, name: "Problematic", color: "#EF4444" },
+          ]);
+        } catch (tagErr) {
+          console.error("signup: default tags insert failed (non-fatal):", tagErr);
+        }
+
         router.push("/dashboard");
       }
     } catch (err: unknown) {

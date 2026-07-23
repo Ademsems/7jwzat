@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { formatDateLocale, formatTimeLocale } from "@/lib/i18n/format";
+import { TagPill, type CustomerTag } from "@/components/TagPill";
 
 interface Customer {
   id: string;
@@ -40,6 +41,10 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: "bg-red-100    text-red-800",
 };
 
+function getErr(e: unknown): string {
+  return e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : "Something went wrong.";
+}
+
 
 export default function CustomerDetailPage() {
   const router  = useRouter();
@@ -55,12 +60,17 @@ export default function CustomerDetailPage() {
   const [notFound, setNotFound]   = useState(false);
   const [answersMap, setAnswersMap]   = useState<AnswersMap>({});
   const [expandedAnswers, setExpandedAnswers] = useState<Set<string>>(new Set());
+  const [userId, setUserId]           = useState<string | null>(null);
+  const [customerTags, setCustomerTags] = useState<CustomerTag[]>([]);
+  const [allTags, setAllTags]         = useState<CustomerTag[]>([]);
+  const [tagBusy, setTagBusy]         = useState(false);
 
   useEffect(() => { init(); }, [id]);
 
   async function init() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/auth/login"); return; }
+    setUserId(session.user.id);
 
     const { data: cust } = await supabase
       .from("customers")
@@ -72,6 +82,17 @@ export default function CustomerDetailPage() {
     if (!cust) { setNotFound(true); setLoading(false); return; }
     setCustomer(cust);
     setNotes(cust.notes ?? "");
+
+    // Tags: this customer's current tags + the business's full tag list (for
+    // the "add tag" dropdown, which only offers tags not already assigned).
+    const [{ data: tagRows }, { data: assignRows }] = await Promise.all([
+      supabase.from("customer_tags").select("id, name, color").eq("business_id", session.user.id).order("created_at"),
+      supabase.from("customer_tag_assignments").select("tag_id").eq("customer_id", id).eq("business_id", session.user.id),
+    ]);
+    const tagById: Record<string, CustomerTag> = {};
+    (tagRows ?? []).forEach((tg: CustomerTag) => { tagById[tg.id] = tg; });
+    setAllTags(tagRows ?? []);
+    setCustomerTags(((assignRows ?? []) as { tag_id: string }[]).map(r => tagById[r.tag_id]).filter(Boolean));
 
     // Load bookings for this customer
     const { data: bkData } = await supabase
@@ -138,6 +159,34 @@ export default function CustomerDetailPage() {
     setSavingNotes(false);
   }
 
+  // Tag changes save immediately — no separate save button/pending state.
+  async function handleAddTag(tagId: string) {
+    if (!userId || !tagId || tagBusy) return;
+    const tag = allTags.find(tg => tg.id === tagId);
+    if (!tag || customerTags.some(tg => tg.id === tagId)) return;
+    setTagBusy(true);
+    const { error } = await supabase.from("customer_tag_assignments").insert({
+      business_id: userId, customer_id: id, tag_id: tagId,
+    });
+    if (error) showToast(getErr(error), "error");
+    else setCustomerTags(prev => [...prev, tag]);
+    setTagBusy(false);
+  }
+
+  async function handleRemoveTag(tagId: string) {
+    if (!userId || tagBusy) return;
+    setTagBusy(true);
+    const { error } = await supabase
+      .from("customer_tag_assignments")
+      .delete()
+      .eq("business_id", userId)
+      .eq("customer_id", id)
+      .eq("tag_id", tagId);
+    if (error) showToast(getErr(error), "error");
+    else setCustomerTags(prev => prev.filter(tg => tg.id !== tagId));
+    setTagBusy(false);
+  }
+
   function toggleAnswers(bkId: string) {
     setExpandedAnswers(prev => {
       const next = new Set(prev);
@@ -200,6 +249,39 @@ export default function CustomerDetailPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Tags */}
+      <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <h3 className="font-semibold text-gray-700 mb-3">{t("tags.title")}</h3>
+        {customerTags.length === 0 ? (
+          <p className="text-gray-400 text-sm mb-3">{t("tags.noneAssigned")}</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {customerTags.map(tag => (
+              <TagPill key={tag.id} tag={tag} onRemove={() => handleRemoveTag(tag.id)} />
+            ))}
+          </div>
+        )}
+        {allTags.filter(tg => !customerTags.some(ct => ct.id === tg.id)).length > 0 ? (
+          <select
+            value=""
+            disabled={tagBusy}
+            onChange={e => handleAddTag(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+          >
+            <option value="" disabled>{t("tags.selectTag")}</option>
+            {allTags.filter(tg => !customerTags.some(ct => ct.id === tg.id)).map(tg => (
+              <option key={tg.id} value={tg.id}>{tg.name}</option>
+            ))}
+          </select>
+        ) : allTags.length > 0 ? (
+          <p className="text-xs text-gray-400">{t("tags.allAssigned")}</p>
+        ) : (
+          <Link href="/dashboard/customers/tags" className="text-xs text-emerald-600 hover:underline font-medium">
+            {t("tags.manage")}
+          </Link>
+        )}
       </div>
 
       {/* Notes */}
