@@ -250,6 +250,25 @@ export const en: Record<string, string> = {
   "bk.customAnswers": "Custom answers",
   "bk.hideAnswers": "Hide answers",
   "bk.backToDashboard": "← Back to Dashboard",
+  "bk.viewTable": "Table",
+  "bk.viewCalendar": "Calendar",
+
+  // Calendar (week/month views + side panel — shared by bookings page + dashboard)
+  "cal.weekView": "Week",
+  "cal.monthView": "Month",
+  "cal.prevWeek": "Previous week",
+  "cal.nextWeek": "Next week",
+  "cal.prevMonth": "Previous month",
+  "cal.nextMonth": "Next month",
+  "cal.prevDays": "Previous days",
+  "cal.nextDays": "Next days",
+  "cal.noBookingsWeek": "No bookings this week.",
+  "cal.noBookingsMonth": "No bookings this month.",
+  "cal.noBookingsDay": "No bookings on this day.",
+  "cal.close": "Close",
+  "cal.typeOnline": "Online Booking",
+  "cal.changeStatus": "Change Status",
+  "cal.dashboardTitle": "This Week's Bookings",
 
   // Customers
   "cust.title": "Customers",

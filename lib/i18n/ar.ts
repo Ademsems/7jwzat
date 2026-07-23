@@ -251,6 +251,25 @@ export const ar: Record<string, string> = {
   "bk.customAnswers": "إجابات مخصّصة",
   "bk.hideAnswers": "إخفاء الإجابات",
   "bk.backToDashboard": "→ العودة إلى الرئيسية",
+  "bk.viewTable": "جدول",
+  "bk.viewCalendar": "تقويم",
+
+  // Calendar (PLACEHOLDER ARABIC — pending founder review)
+  "cal.weekView": "أسبوع",
+  "cal.monthView": "شهر",
+  "cal.prevWeek": "الأسبوع السابق",
+  "cal.nextWeek": "الأسبوع التالي",
+  "cal.prevMonth": "الشهر السابق",
+  "cal.nextMonth": "الشهر التالي",
+  "cal.prevDays": "الأيام السابقة",
+  "cal.nextDays": "الأيام التالية",
+  "cal.noBookingsWeek": "لا توجد حجوزات هذا الأسبوع.",
+  "cal.noBookingsMonth": "لا توجد حجوزات هذا الشهر.",
+  "cal.noBookingsDay": "لا توجد حجوزات في هذا اليوم.",
+  "cal.close": "إغلاق",
+  "cal.typeOnline": "حجز عبر الإنترنت",
+  "cal.changeStatus": "تغيير الحالة",
+  "cal.dashboardTitle": "حجوزات هذا الأسبوع",
 
   // Customers
   "cust.title": "العملاء",

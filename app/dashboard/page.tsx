@@ -10,6 +10,7 @@ import { QRCodeCard } from "@/components/QRCodeCard";
 import { formatPrice, DEFAULT_CURRENCY } from "@/lib/currency";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { InfoTooltip } from "@/components/InfoTooltip";
+import { Calendar, type CalendarBooking, type CfAnswer, type CfAnswersMap } from "@/components/Calendar";
 
 interface UserProfile {
   email: string;
@@ -23,6 +24,7 @@ interface Stats {
   serviceCount: number;
   revenueMTD: number;
 }
+interface BusinessHourRow { day_of_week: number; start_time: string; end_time: string; }
 
 function localDateString(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -51,6 +53,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
+  // Calendar block data
+  const [calendarBookings, setCalendarBookings] = useState<CalendarBooking[]>([]);
+  const [businessHours, setBusinessHours] = useState<BusinessHourRow[]>([]);
+  const [answersMap, setAnswersMap] = useState<CfAnswersMap>({});
+
   useEffect(() => {
     async function load() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -60,12 +67,17 @@ export default function DashboardPage() {
       const today = localDateString();
       const firstOfMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`;
 
-      const [profileRes, totalRes, todayRes, svcRes, revenueRes] = await Promise.all([
+      const [profileRes, totalRes, todayRes, svcRes, revenueRes, svcNamesRes, staffRes, hoursRes, bkRes] = await Promise.all([
         supabase.from("users").select("email, business_name, business_type, currency").eq("id", userId).single(),
         supabase.from("bookings").select("*", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("bookings").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("booking_date", today),
         supabase.from("services").select("*", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("bookings").select("services(price)").eq("user_id", userId).gte("booking_date", firstOfMonth).neq("status", "cancelled"),
+        // Calendar block — mirrors the merge-client-side pattern used on the bookings page.
+        supabase.from("services").select("id, name").eq("user_id", userId),
+        supabase.from("staff").select("id, name").eq("user_id", userId).eq("is_active", true),
+        supabase.from("business_hours").select("day_of_week, start_time, end_time").eq("user_id", userId),
+        supabase.from("bookings").select("*").eq("user_id", userId),
       ]);
 
       setProfile(profileRes.data ?? { email: session.user.email ?? "", business_name: "My Business" });
@@ -81,10 +93,55 @@ export default function DashboardPage() {
         revenueMTD,
       });
 
+      // ── Calendar block ─────────────────────────────────────────────────
+      setBusinessHours(hoursRes.data ?? []);
+      const svcNameById: Record<string, string> = {};
+      (svcNamesRes.data ?? []).forEach((s: { id: string; name: string }) => { svcNameById[s.id] = s.name; });
+      const staffNameById: Record<string, string> = {};
+      (staffRes.data ?? []).forEach((s: { id: string; name: string }) => { staffNameById[s.id] = s.name; });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawBookings = (bkRes.data ?? []) as any[];
+      setCalendarBookings(rawBookings.map(b => ({
+        id: b.id,
+        customer_name: b.customer_name,
+        customer_email: b.customer_email,
+        customer_phone: b.customer_phone,
+        notes: b.notes,
+        internal_note: b.internal_note,
+        booking_date: b.booking_date,
+        booking_time: b.booking_time,
+        status: b.status,
+        booking_type: b.booking_type,
+        group_session_id: b.group_session_id,
+        service_id: b.service_id,
+        service_name: svcNameById[b.service_id] ?? "—",
+        staff_id: b.staff_id,
+        staff_name: b.staff_id ? (staffNameById[b.staff_id] ?? b.staff_preference) : null,
+      })));
+
+      if (rawBookings.length > 0) {
+        const { data: cfaRows } = await supabase
+          .from("custom_field_answers")
+          .select("booking_id, custom_field_id, answer, custom_fields(label)")
+          .in("booking_id", rawBookings.map(b => b.id));
+        const map: CfAnswersMap = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (cfaRows ?? []).forEach((row: any) => {
+          const entry: CfAnswer = { custom_field_id: row.custom_field_id, answer: row.answer, label: row.custom_fields?.label ?? row.custom_field_id };
+          (map[row.booking_id] ??= []).push(entry);
+        });
+        setAnswersMap(map);
+      }
+
       setLoading(false);
     }
     load();
   }, [router]);
+
+  function handleCalendarStatusChange(id: string, status: CalendarBooking["status"]) {
+    setCalendarBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
+  }
 
   async function copyLink() {
     if (!profile) return;
@@ -169,6 +226,20 @@ export default function DashboardPage() {
             <p className="text-3xl font-bold text-gray-800 mt-2">{stat.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Calendar — read-only browsing; status changes still work via the side panel */}
+      <div className="mb-8">
+        <h3 className="font-semibold text-gray-700 mb-3">{t("cal.dashboardTitle")}</h3>
+        <Calendar
+          bookings={calendarBookings}
+          businessHours={businessHours}
+          answersMap={answersMap}
+          onBookingStatusChange={handleCalendarStatusChange}
+          storageKey="7jwzat-calendar-view-dashboard"
+          defaultView="week"
+          compact
+        />
       </div>
 
       {/* Quick links */}

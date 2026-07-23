@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { formatDateLocale } from "@/lib/i18n/format";
+import { Calendar, type CalendarBooking } from "@/components/Calendar";
+import { updateBookingStatus } from "@/lib/bookingActions";
 
 type Status = "pending" | "confirmed" | "completed" | "cancelled";
 type BookingType = "customer" | "blocked" | "manual";
@@ -57,11 +59,23 @@ const STATUS_STYLES: Record<Status, string> = {
   cancelled: "bg-red-100    text-red-800    border-red-200",
 };
 
+type ViewMode = "table" | "calendar";
+const VIEW_STORAGE_KEY = "7jwzat-bookings-viewmode";
+
+function readStoredViewMode(): ViewMode {
+  if (typeof window === "undefined") return "calendar";
+  const v = localStorage.getItem(VIEW_STORAGE_KEY);
+  return v === "table" ? "table" : "calendar";
+}
+
+interface BusinessHourRow { day_of_week: number; start_time: string; end_time: string; }
+
 export default function BookingsPage() {
   const router = useRouter();
   const { t, locale } = useLanguage();
   const [bookings, setBookings]       = useState<Booking[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [businessHours, setBusinessHours] = useState<BusinessHourRow[]>([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState("");
   const [updatingId, setUpdatingId]   = useState<string | null>(null);
@@ -69,6 +83,12 @@ export default function BookingsPage() {
   const [businessName, setBusinessName] = useState("");
   const [answersMap, setAnswersMap]   = useState<AnswersMap>({});
   const [expandedAnswers, setExpandedAnswers] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode]       = useState<ViewMode>(() => readStoredViewMode());
+
+  function selectViewMode(mode: ViewMode) {
+    setViewMode(mode);
+    try { localStorage.setItem(VIEW_STORAGE_KEY, mode); } catch { /* ignore */ }
+  }
 
   useEffect(() => { init(); }, []);
 
@@ -76,12 +96,14 @@ export default function BookingsPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/auth/login"); return; }
 
-    const [{ data: profile }, { data: svcRows }, { data: bkRows }, { data: staffRows }] = await Promise.all([
+    const [{ data: profile }, { data: svcRows }, { data: bkRows }, { data: staffRows }, { data: hoursRows }] = await Promise.all([
       supabase.from("users").select("business_name").eq("id", session.user.id).single(),
       supabase.from("services").select("id, name"),
       supabase.from("bookings").select("*").order("booking_date", { ascending: false }).order("booking_time", { ascending: false }),
       supabase.from("staff").select("id, name").eq("user_id", session.user.id).eq("is_active", true).order("name"),
+      supabase.from("business_hours").select("day_of_week, start_time, end_time").eq("user_id", session.user.id),
     ]);
+    setBusinessHours(hoursRows ?? []);
 
     if (profile) setBusinessName(profile.business_name);
 
@@ -122,10 +144,17 @@ export default function BookingsPage() {
 
   async function handleStatusChange(id: string, status: Status) {
     setUpdatingId(id);
-    const { error: upErr } = await supabase.from("bookings").update({ status }).eq("id", id);
-    if (upErr) setError(getErr(upErr));
+    const { error: upErr } = await updateBookingStatus(id, status);
+    if (upErr) setError(upErr);
     else setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
     setUpdatingId(null);
+  }
+
+  // The calendar's side panel already calls updateBookingStatus itself before
+  // invoking this — this only needs to keep the table's local state in sync
+  // so switching Table ↔ Calendar always reflects the same data.
+  function handleCalendarStatusChange(id: string, status: Status) {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
   }
 
   async function handleStaffChange(id: string, staffId: string) {
@@ -165,25 +194,67 @@ export default function BookingsPage() {
     </div>
   );
 
+  const staffById: Record<string, string> = {};
+  staffOptions.forEach(s => { staffById[s.id] = s.name; });
+  const calendarBookings: CalendarBooking[] = bookings.map(b => ({
+    id: b.id,
+    customer_name: b.customer_name,
+    customer_email: b.customer_email,
+    customer_phone: b.customer_phone,
+    notes: b.notes,
+    internal_note: b.internal_note,
+    booking_date: b.booking_date,
+    booking_time: b.booking_time,
+    status: b.status,
+    booking_type: b.booking_type,
+    group_session_id: b.group_session_id,
+    service_id: b.service_id,
+    service_name: b.service_name,
+    staff_id: b.staff_id,
+    staff_name: b.staff_id ? (staffById[b.staff_id] ?? b.staff_preference) : null,
+  }));
+
   return (
     <main className="flex-1 p-4 sm:p-8 min-w-0">
-      <div className="flex items-start justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 inline-flex items-center gap-2">{t("bk.title")} <InfoTooltip textKey="tip.page.bookings" /></h2>
           <p className="text-gray-500 text-sm mt-1">{t("bk.subtitle")}</p>
         </div>
-        <Link
-          href="/dashboard/bookings/new"
-          className="shrink-0 bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition"
-        >
-          {t("bk.addBlock")}
-        </Link>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+            <button type="button" onClick={() => selectViewMode("table")}
+              className={`px-3 py-2 transition ${viewMode === "table" ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
+              {t("bk.viewTable")}
+            </button>
+            <button type="button" onClick={() => selectViewMode("calendar")}
+              className={`px-3 py-2 transition ${viewMode === "calendar" ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}>
+              {t("bk.viewCalendar")}
+            </button>
+          </div>
+          <Link
+            href="/dashboard/bookings/new"
+            className="bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition"
+          >
+            {t("bk.addBlock")}
+          </Link>
+        </div>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-6 text-sm">{error}</div>
       )}
 
+      {viewMode === "calendar" ? (
+        <Calendar
+          bookings={calendarBookings}
+          businessHours={businessHours}
+          answersMap={answersMap}
+          onBookingStatusChange={handleCalendarStatusChange}
+          storageKey="7jwzat-calendar-view-bookings"
+          defaultView="week"
+        />
+      ) : (
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         {bookings.length === 0 ? (
           <div className="p-12 text-center">
@@ -354,6 +425,7 @@ export default function BookingsPage() {
           </div>
         )}
       </div>
+      )}
 
       <div className="mt-6">
         <Link href="/dashboard" className="text-sm text-emerald-600 hover:underline">{t("bk.backToDashboard")}</Link>
