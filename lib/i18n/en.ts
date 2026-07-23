@@ -252,6 +252,18 @@ export const en: Record<string, string> = {
   "bk.backToDashboard": "← Back to Dashboard",
   "bk.viewTable": "Table",
   "bk.viewCalendar": "Calendar",
+  "bk.noFilterMatches": "No bookings match these filters.",
+
+  // Bookings filter bar
+  "flt.statusLabel": "Status",
+  "flt.dateRangeLabel": "Date Range",
+  "flt.typeLabel": "Type",
+  "flt.staffLabel": "Staff",
+  "flt.all": "All",
+  "flt.manualBlocked": "Manual / Blocked",
+  "flt.unassigned": "Unassigned",
+  "flt.clearFilters": "Clear filters",
+  "flt.selected": "selected",
 
   // Calendar (week/month views + side panel — shared by bookings page + dashboard)
   "cal.weekView": "Week",

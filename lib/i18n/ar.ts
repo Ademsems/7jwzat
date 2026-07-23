@@ -253,6 +253,18 @@ export const ar: Record<string, string> = {
   "bk.backToDashboard": "→ العودة إلى الرئيسية",
   "bk.viewTable": "جدول",
   "bk.viewCalendar": "تقويم",
+  "bk.noFilterMatches": "لا توجد حجوزات مطابقة لهذه الفلاتر.",
+
+  // Bookings filter bar (PLACEHOLDER ARABIC — pending founder review)
+  "flt.statusLabel": "الحالة",
+  "flt.dateRangeLabel": "الفترة الزمنية",
+  "flt.typeLabel": "النوع",
+  "flt.staffLabel": "الطاقم",
+  "flt.all": "الكل",
+  "flt.manualBlocked": "يدوي / محجوب",
+  "flt.unassigned": "غير معيّن",
+  "flt.clearFilters": "مسح الفلاتر",
+  "flt.selected": "محدد",
 
   // Calendar (PLACEHOLDER ARABIC — pending founder review)
   "cal.weekView": "أسبوع",

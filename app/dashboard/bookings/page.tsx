@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +9,7 @@ import { InfoTooltip } from "@/components/InfoTooltip";
 import { formatDateLocale } from "@/lib/i18n/format";
 import { Calendar, type CalendarBooking } from "@/components/Calendar";
 import { updateBookingStatus } from "@/lib/bookingActions";
+import { computeRange, parseLocalDate, type RangeKey } from "@/lib/analyticsRange";
 
 type Status = "pending" | "confirmed" | "completed" | "cancelled";
 type BookingType = "customer" | "blocked" | "manual";
@@ -70,6 +71,64 @@ function readStoredViewMode(): ViewMode {
 
 interface BusinessHourRow { day_of_week: number; start_time: string; end_time: string; }
 
+// ── Filter bar ────────────────────────────────────────────────────────────
+type StatusFilterValue = Status | "blocked";
+const STATUS_FILTER_OPTIONS: StatusFilterValue[] = ["pending", "confirmed", "completed", "cancelled", "blocked"];
+type BookingTypeFilter = "all" | "individual" | "group" | "manual-blocked";
+type StaffFilterValue = "all" | "unassigned" | string;
+
+/** Multi-select status dropdown — click-outside pattern mirrors InfoTooltip.tsx. */
+function StatusMultiSelect({ selected, onChange }: { selected: Set<StatusFilterValue>; onChange: (next: Set<StatusFilterValue>) => void }) {
+  const { t } = useLanguage();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  function toggleOption(v: StatusFilterValue) {
+    const next = new Set(selected);
+    next.has(v) ? next.delete(v) : next.add(v);
+    onChange(next);
+  }
+
+  const label = selected.size === 0 ? t("flt.all") : `${selected.size} ${t("flt.selected")}`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <label className="block text-xs text-gray-500 mb-1">{t("flt.statusLabel")}</label>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white text-start min-w-[130px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
+      >
+        {label}
+      </button>
+      {open && (
+        <div className="absolute start-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-lg shadow-lg py-1.5 min-w-[160px]">
+          <label className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+            <input type="checkbox" checked={selected.size === 0} onChange={() => onChange(new Set())} className="accent-emerald-600" />
+            {t("flt.all")}
+          </label>
+          <div className="border-t border-gray-100 my-1" />
+          {STATUS_FILTER_OPTIONS.map(opt => (
+            <label key={opt} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+              <input type="checkbox" checked={selected.has(opt)} onChange={() => toggleOption(opt)} className="accent-emerald-600" />
+              {t(`status.${opt}`)}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BookingsPage() {
   const router = useRouter();
   const { t, locale } = useLanguage();
@@ -88,6 +147,52 @@ export default function BookingsPage() {
   function selectViewMode(mode: ViewMode) {
     setViewMode(mode);
     try { localStorage.setItem(VIEW_STORAGE_KEY, mode); } catch { /* ignore */ }
+  }
+
+  // ── Filters — one shared state, both Table and Calendar read from it ────
+  // Default date range differs by view (This Month for the less time-
+  // constrained table, This Week for the calendar), but only at first mount —
+  // toggling Table ↔ Calendar afterward never silently resets the filter.
+  const initialDateRange: RangeKey = viewMode === "table" ? "this-month" : "this-week";
+  const [statusFilter, setStatusFilter]   = useState<Set<StatusFilterValue>>(new Set());
+  const [dateRangeFilter, setDateRangeFilter] = useState<RangeKey>(initialDateRange);
+  const [customStart, setCustomStart]     = useState("");
+  const [customEnd, setCustomEnd]         = useState("");
+  const [appliedCustom, setAppliedCustom] = useState<{ start: string; end: string } | null>(null);
+  const [rangeError, setRangeError]       = useState<string | null>(null);
+  const [bookingTypeFilter, setBookingTypeFilter] = useState<BookingTypeFilter>("all");
+  const [staffFilter, setStaffFilter]     = useState<StaffFilterValue>("all");
+
+  function selectDateRangeFilter(key: RangeKey) {
+    setRangeError(null);
+    if (key === "custom") {
+      if (!customStart || !customEnd) {
+        const seed = computeRange(dateRangeFilter === "custom" ? "this-week" : dateRangeFilter);
+        setCustomStart(seed.start);
+        setCustomEnd(seed.end);
+      }
+    } else {
+      setAppliedCustom(null);
+    }
+    setDateRangeFilter(key);
+  }
+
+  function applyCustomRange() {
+    if (!customStart || !customEnd) return;
+    if (parseLocalDate(customStart) > parseLocalDate(customEnd)) {
+      setRangeError(t("an2.invalidRange"));
+      return;
+    }
+    setRangeError(null);
+    setAppliedCustom({ start: customStart, end: customEnd });
+  }
+
+  function clearFilters() {
+    setStatusFilter(new Set());
+    setBookingTypeFilter("all");
+    setStaffFilter("all");
+    setDateRangeFilter(viewMode === "table" ? "this-month" : "this-week");
+    setCustomStart(""); setCustomEnd(""); setAppliedCustom(null); setRangeError(null);
   }
 
   useEffect(() => { init(); }, []);
@@ -188,6 +293,32 @@ export default function BookingsPage() {
     });
   }
 
+  // ── Apply filters (AND across all four — a booking must match every
+  // active filter) — one predicate feeds both the table and the calendar. ──
+  const activeRange = dateRangeFilter === "custom"
+    ? (appliedCustom ? computeRange("custom", appliedCustom.start, appliedCustom.end) : null)
+    : computeRange(dateRangeFilter);
+
+  function matchesFilters(b: Booking): boolean {
+    if (statusFilter.size > 0) {
+      const key: StatusFilterValue = b.booking_type === "blocked" ? "blocked" : b.status;
+      if (!statusFilter.has(key)) return false;
+    }
+    if (activeRange && (b.booking_date < activeRange.start || b.booking_date > activeRange.end)) return false;
+    if (bookingTypeFilter === "individual" && !(b.booking_type === "customer" && !b.group_session_id)) return false;
+    if (bookingTypeFilter === "group" && !(b.booking_type === "customer" && !!b.group_session_id)) return false;
+    if (bookingTypeFilter === "manual-blocked" && !(b.booking_type === "manual" || b.booking_type === "blocked")) return false;
+    if (staffFilter === "unassigned" && b.staff_id !== null) return false;
+    if (staffFilter !== "all" && staffFilter !== "unassigned" && b.staff_id !== staffFilter) return false;
+    return true;
+  }
+  const filteredBookings = bookings.filter(matchesFilters);
+  const filtersActive =
+    statusFilter.size > 0 ||
+    bookingTypeFilter !== "all" ||
+    staffFilter !== "all" ||
+    dateRangeFilter !== (viewMode === "table" ? "this-month" : "this-week");
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <p className="text-gray-500">{t("d.loading")}</p>
@@ -196,7 +327,7 @@ export default function BookingsPage() {
 
   const staffById: Record<string, string> = {};
   staffOptions.forEach(s => { staffById[s.id] = s.name; });
-  const calendarBookings: CalendarBooking[] = bookings.map(b => ({
+  const calendarBookings: CalendarBooking[] = filteredBookings.map(b => ({
     id: b.id,
     customer_name: b.customer_name,
     customer_email: b.customer_email,
@@ -241,6 +372,93 @@ export default function BookingsPage() {
         </div>
       </div>
 
+      {/* ── Filter bar — one shared state feeds both Table and Calendar ── */}
+      <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
+        <div className="flex flex-wrap items-end gap-4">
+          <StatusMultiSelect selected={statusFilter} onChange={setStatusFilter} />
+
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">{t("flt.dateRangeLabel")}</label>
+            <select
+              value={dateRangeFilter}
+              onChange={e => selectDateRangeFilter(e.target.value as RangeKey)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="this-week">{t("an2.thisWeek")}</option>
+              <option value="this-month">{t("an.thisMonth")}</option>
+              <option value="last-30">{t("an2.last30")}</option>
+              <option value="custom">{t("an2.custom")}</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">{t("flt.typeLabel")}</label>
+            <select
+              value={bookingTypeFilter}
+              onChange={e => setBookingTypeFilter(e.target.value as BookingTypeFilter)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="all">{t("flt.all")}</option>
+              <option value="individual">{t("an2.individualBookings")}</option>
+              <option value="group">{t("an2.groupBookings")}</option>
+              <option value="manual-blocked">{t("flt.manualBlocked")}</option>
+            </select>
+          </div>
+
+          {staffOptions.length > 0 && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">{t("flt.staffLabel")}</label>
+              <select
+                value={staffFilter}
+                onChange={e => setStaffFilter(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="all">{t("flt.all")}</option>
+                <option value="unassigned">{t("flt.unassigned")}</option>
+                {staffOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          {filtersActive && (
+            <button type="button" onClick={clearFilters} className="text-sm text-emerald-600 hover:underline font-medium">
+              {t("flt.clearFilters")}
+            </button>
+          )}
+        </div>
+
+        {dateRangeFilter === "custom" && (
+          <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-gray-100 pt-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">{t("an2.startDate")}</label>
+              <input
+                type="date"
+                value={customStart}
+                onChange={e => setCustomStart(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">{t("an2.endDate")}</label>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={e => setCustomEnd(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={applyCustomRange}
+              className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition"
+            >
+              {t("an2.apply")}
+            </button>
+            {rangeError && <p className="text-xs text-red-500 w-full">{rangeError}</p>}
+          </div>
+        )}
+      </div>
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-6 text-sm">{error}</div>
       )}
@@ -253,6 +471,7 @@ export default function BookingsPage() {
           onBookingStatusChange={handleCalendarStatusChange}
           storageKey="7jwzat-calendar-view-bookings"
           defaultView="week"
+          emptyStateMessage={bookings.length > 0 && filteredBookings.length === 0 ? t("bk.noFilterMatches") : undefined}
         />
       ) : (
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -264,6 +483,13 @@ export default function BookingsPage() {
                 {t("bk.shareLink")}
               </Link>
             )}
+          </div>
+        ) : filteredBookings.length === 0 ? (
+          <div className="p-12 text-center">
+            <p className="text-gray-400 text-sm mb-4">{t("bk.noFilterMatches")}</p>
+            <button type="button" onClick={clearFilters} className="text-emerald-600 text-sm hover:underline font-medium">
+              {t("flt.clearFilters")}
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -280,7 +506,7 @@ export default function BookingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {bookings.map(b => {
+                {filteredBookings.map(b => {
                   const isBlocked = b.booking_type === "blocked";
                   const isManual  = b.booking_type === "manual";
                   const isGroup   = !!b.group_session_id;
@@ -420,7 +646,7 @@ export default function BookingsPage() {
               </tbody>
             </table>
             <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-end">
-              <span className="text-xs text-gray-400">{bookings.length} {t("bk.records")}</span>
+              <span className="text-xs text-gray-400">{filteredBookings.length} {t("bk.records")}</span>
             </div>
           </div>
         )}

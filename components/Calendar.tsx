@@ -66,7 +66,7 @@ const DOT_CLASS: Record<string, string> = {
  * "each page fetches its own data" convention.
  */
 export function Calendar({
-  bookings, businessHours, answersMap, onBookingStatusChange, storageKey, defaultView = "week", compact = false,
+  bookings, businessHours, answersMap, onBookingStatusChange, storageKey, defaultView = "week", compact = false, emptyStateMessage,
 }: {
   bookings: CalendarBooking[];
   businessHours: BusinessHourRow[];
@@ -75,6 +75,10 @@ export function Calendar({
   storageKey: string;
   defaultView?: ViewMode;
   compact?: boolean;
+  /** Overrides the default "no bookings this week/month" text — used when
+   *  `bookings` is empty because of an active filter rather than genuinely
+   *  having no data, so the message can say so explicitly. */
+  emptyStateMessage?: string;
 }) {
   const { t, locale } = useLanguage();
 
@@ -236,7 +240,7 @@ export function Calendar({
       {view === "week" && (
         <div>
           {weekBookingCount === 0 && (
-            <p className="text-gray-400 text-sm text-center py-3">{t("cal.noBookingsWeek")}</p>
+            <p className="text-gray-400 text-sm text-center py-3">{emptyStateMessage ?? t("cal.noBookingsWeek")}</p>
           )}
           {isMobile && (
             <div className="flex items-center justify-between mb-2">
@@ -247,7 +251,7 @@ export function Calendar({
             </div>
           )}
           {hourRows.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-6">{t("cal.noBookingsWeek")}</p>
+            <p className="text-gray-400 text-sm text-center py-6">{emptyStateMessage ?? t("cal.noBookingsWeek")}</p>
           ) : (
             <div className="overflow-x-auto">
               <div className="grid min-w-[420px]" style={{ gridTemplateColumns: `44px repeat(${visibleDays.length}, minmax(0,1fr))` }}>
@@ -289,7 +293,7 @@ export function Calendar({
       {view === "month" && (
         <div>
           {monthBookingCount === 0 && (
-            <p className="text-gray-400 text-sm text-center py-3">{t("cal.noBookingsMonth")}</p>
+            <p className="text-gray-400 text-sm text-center py-3">{emptyStateMessage ?? t("cal.noBookingsMonth")}</p>
           )}
           <div className="grid grid-cols-7 gap-1">
             {weekDays.map(d => (
