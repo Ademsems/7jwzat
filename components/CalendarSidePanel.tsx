@@ -44,8 +44,12 @@ const STATUS_BTN_CLS: Record<BookingStatus, string> = {
 const SENTINEL_EMAIL = new Set(["blocked@internal", "noemail@internal"]);
 const SENTINEL_PHONE = "0000000000";
 
-/** Card used both inside week-view grid cells and the panel's day-list. */
-export function CalendarCard({ booking, onClick, compact }: { booking: CalendarBooking; onClick?: () => void; compact?: boolean }) {
+/**
+ * Card used both inside week-view grid cells and the panel's day-list.
+ * `staffColor` is an accent only (a small dot) — status color via `cls`
+ * remains the card's primary background/border signal.
+ */
+export function CalendarCard({ booking, onClick, compact, staffColor }: { booking: CalendarBooking; onClick?: () => void; compact?: boolean; staffColor?: string }) {
   const { locale } = useLanguage();
   const isMuted = booking.booking_type === "blocked" || booking.booking_type === "manual";
   const cls = isMuted
@@ -57,8 +61,9 @@ export function CalendarCard({ booking, onClick, compact }: { booking: CalendarB
       onClick={onClick}
       className={`w-full text-start rounded-md border px-1.5 py-1 ${compact ? "text-[10px] leading-tight" : "text-xs"} ${cls} hover:brightness-95 transition truncate`}
     >
-      <p className="font-semibold truncate">
-        {booking.booking_type === "blocked" ? "🚫" : booking.customer_name}
+      <p className="font-semibold truncate flex items-center gap-1">
+        {staffColor && <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: staffColor }} aria-hidden="true" />}
+        <span className="truncate">{booking.booking_type === "blocked" ? "🚫" : booking.customer_name}</span>
       </p>
       {!compact && <p className="truncate opacity-80">{booking.service_name}</p>}
       <p className="opacity-70">{formatTimeLocale(booking.booking_time, locale)}</p>
@@ -68,11 +73,13 @@ export function CalendarCard({ booking, onClick, compact }: { booking: CalendarB
 }
 
 export function CalendarSidePanel({
-  panelState, dayBookings, answersMap, onClose, onOpenBooking, onBackToDay, onStatusChanged,
+  panelState, dayBookings, answersMap, staffColors, onClose, onOpenBooking, onBackToDay, onStatusChanged,
 }: {
   panelState: PanelState;
   dayBookings: CalendarBooking[];
   answersMap: CfAnswersMap;
+  /** staff_id → accent color hex, shown as a small dot on cards (All Staff view only). */
+  staffColors?: Record<string, string>;
   onClose: () => void;
   onOpenBooking: (b: CalendarBooking) => void;
   onBackToDay: () => void;
@@ -116,6 +123,7 @@ export function CalendarSidePanel({
           <DayListPanel
             date={panelState.date}
             bookings={dayBookings}
+            staffColors={staffColors}
             onClose={onClose}
             onOpenBooking={onOpenBooking}
           />
@@ -157,8 +165,8 @@ function PanelHeader({ title, onClose, onBack }: { title: string; onClose: () =>
   );
 }
 
-function DayListPanel({ date, bookings, onClose, onOpenBooking }: {
-  date: string; bookings: CalendarBooking[]; onClose: () => void; onOpenBooking: (b: CalendarBooking) => void;
+function DayListPanel({ date, bookings, staffColors, onClose, onOpenBooking }: {
+  date: string; bookings: CalendarBooking[]; staffColors?: Record<string, string>; onClose: () => void; onOpenBooking: (b: CalendarBooking) => void;
 }) {
   const { t, locale } = useLanguage();
   return (
@@ -171,7 +179,14 @@ function DayListPanel({ date, bookings, onClose, onOpenBooking }: {
           bookings
             .slice()
             .sort((a, b) => a.booking_time.localeCompare(b.booking_time))
-            .map(b => <CalendarCard key={b.id} booking={b} onClick={() => onOpenBooking(b)} />)
+            .map(b => (
+              <CalendarCard
+                key={b.id}
+                booking={b}
+                onClick={() => onOpenBooking(b)}
+                staffColor={b.staff_id ? staffColors?.[b.staff_id] : undefined}
+              />
+            ))
         )}
       </div>
     </div>

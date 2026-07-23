@@ -265,6 +265,9 @@ export const ar: Record<string, string> = {
   "flt.unassigned": "غير معيّن",
   "flt.clearFilters": "مسح الفلاتر",
   "flt.selected": "محدد",
+  "flt.staffViewLabel": "عرض حسب الطاقم",
+  "flt.allStaff": "كل الطاقم",
+  "flt.viewingLabel": "تعرض: تقويم {name}",
 
   // Calendar (PLACEHOLDER ARABIC — pending founder review)
   "cal.weekView": "أسبوع",

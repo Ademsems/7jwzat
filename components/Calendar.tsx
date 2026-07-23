@@ -66,7 +66,7 @@ const DOT_CLASS: Record<string, string> = {
  * "each page fetches its own data" convention.
  */
 export function Calendar({
-  bookings, businessHours, answersMap, onBookingStatusChange, storageKey, defaultView = "week", compact = false, emptyStateMessage,
+  bookings, businessHours, answersMap, onBookingStatusChange, storageKey, defaultView = "week", compact = false, emptyStateMessage, staffColors,
 }: {
   bookings: CalendarBooking[];
   businessHours: BusinessHourRow[];
@@ -79,6 +79,10 @@ export function Calendar({
    *  `bookings` is empty because of an active filter rather than genuinely
    *  having no data, so the message can say so explicitly. */
   emptyStateMessage?: string;
+  /** staff_id → accent color hex, shown as a small dot on cards. Pass
+   *  undefined/omit to render cards with no staff accent (e.g. when a single
+   *  staff member's view is already active and there's nothing to distinguish). */
+  staffColors?: Record<string, string>;
 }) {
   const { t, locale } = useLanguage();
 
@@ -276,7 +280,13 @@ export function Calendar({
                       return (
                         <div key={dateStr} className={`border-t border-s border-gray-50 p-0.5 space-y-0.5 ${compact ? "min-h-[32px]" : "min-h-[46px]"}`}>
                           {cellBookings.map(b => (
-                            <CalendarCard key={b.id} booking={b} compact onClick={() => openDetailFromWeek(b)} />
+                            <CalendarCard
+                              key={b.id}
+                              booking={b}
+                              compact
+                              onClick={() => openDetailFromWeek(b)}
+                              staffColor={b.staff_id ? staffColors?.[b.staff_id] : undefined}
+                            />
                           ))}
                         </div>
                       );
@@ -334,6 +344,7 @@ export function Calendar({
         panelState={panelState}
         dayBookings={panelDayBookings}
         answersMap={answersMap}
+        staffColors={staffColors}
         onClose={closePanel}
         onOpenBooking={openDetailFromDay}
         onBackToDay={backToDay}

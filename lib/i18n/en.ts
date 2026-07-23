@@ -264,6 +264,9 @@ export const en: Record<string, string> = {
   "flt.unassigned": "Unassigned",
   "flt.clearFilters": "Clear filters",
   "flt.selected": "selected",
+  "flt.staffViewLabel": "Staff View",
+  "flt.allStaff": "All Staff",
+  "flt.viewingLabel": "Viewing: {name}'s calendar",
 
   // Calendar (week/month views + side panel — shared by bookings page + dashboard)
   "cal.weekView": "Week",

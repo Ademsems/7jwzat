@@ -32,7 +32,12 @@ interface Booking {
   staff_preference: string | null;
 }
 
-interface StaffOption { id: string; name: string; }
+interface StaffOption { id: string; name: string; created_at: string; }
+
+// Fixed palette for the staff-view color accents (All Staff view only) —
+// deliberately distinct from the status colors (amber/blue/green/gray/slate)
+// so a staff dot is never mistaken for a status signal.
+const STAFF_ACCENT_COLORS = ["#6366f1", "#06b6d4", "#ec4899", "#14b8a6", "#8b5cf6", "#f43f5e", "#84cc16", "#d946ef"];
 
 interface CfAnswer { custom_field_id: string; answer: string; label: string; }
 // Map: bookingId → CfAnswer[]
@@ -163,6 +168,12 @@ export default function BookingsPage() {
   const [bookingTypeFilter, setBookingTypeFilter] = useState<BookingTypeFilter>("all");
   const [staffFilter, setStaffFilter]     = useState<StaffFilterValue>("all");
 
+  // ── Staff view — a separate "whose calendar am I looking at" switch, not
+  // one of the four filters above. Composes with them via the same AND
+  // predicate; "Clear filters" intentionally leaves it alone (same as it
+  // leaves the Table/Calendar toggle alone).
+  const [staffView, setStaffView] = useState<string>("all"); // "all" | staff id
+
   function selectDateRangeFilter(key: RangeKey) {
     setRangeError(null);
     if (key === "custom") {
@@ -205,7 +216,7 @@ export default function BookingsPage() {
       supabase.from("users").select("business_name").eq("id", session.user.id).single(),
       supabase.from("services").select("id, name"),
       supabase.from("bookings").select("*").order("booking_date", { ascending: false }).order("booking_time", { ascending: false }),
-      supabase.from("staff").select("id, name").eq("user_id", session.user.id).eq("is_active", true).order("name"),
+      supabase.from("staff").select("id, name, created_at").eq("user_id", session.user.id).eq("is_active", true).order("name"),
       supabase.from("business_hours").select("day_of_week, start_time, end_time").eq("user_id", session.user.id),
     ]);
     setBusinessHours(hoursRows ?? []);
@@ -310,6 +321,10 @@ export default function BookingsPage() {
     if (bookingTypeFilter === "manual-blocked" && !(b.booking_type === "manual" || b.booking_type === "blocked")) return false;
     if (staffFilter === "unassigned" && b.staff_id !== null) return false;
     if (staffFilter !== "all" && staffFilter !== "unassigned" && b.staff_id !== staffFilter) return false;
+    // Staff view: viewing a specific person's calendar shows only their
+    // bookings — unassigned bookings (no staff_id) never match a specific
+    // person, so they naturally stay visible only in "All Staff".
+    if (staffView !== "all" && b.staff_id !== staffView) return false;
     return true;
   }
   const filteredBookings = bookings.filter(matchesFilters);
@@ -327,6 +342,16 @@ export default function BookingsPage() {
 
   const staffById: Record<string, string> = {};
   staffOptions.forEach(s => { staffById[s.id] = s.name; });
+
+  // Color accent assignment — cycles through STAFF_ACCENT_COLORS in the
+  // order staff members were created (not the alphabetical order the
+  // dropdowns display them in).
+  const staffColorById: Record<string, string> = {};
+  [...staffOptions]
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .forEach((s, i) => { staffColorById[s.id] = STAFF_ACCENT_COLORS[i % STAFF_ACCENT_COLORS.length]; });
+  const activeStaffView = staffOptions.find(s => s.id === staffView);
+
   const calendarBookings: CalendarBooking[] = filteredBookings.map(b => ({
     id: b.id,
     customer_name: b.customer_name,
@@ -371,6 +396,43 @@ export default function BookingsPage() {
           </Link>
         </div>
       </div>
+
+      {/* ── Staff view — a "whose calendar" switch, separate from the staff
+          filter below. Hidden entirely when the business has no staff. ── */}
+      {staffOptions.length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs text-gray-500 mb-1.5">{t("flt.staffViewLabel")}</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setStaffView("all")}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
+                staffView === "all" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400"
+              }`}
+            >
+              {t("flt.allStaff")}
+            </button>
+            {staffOptions.map(s => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setStaffView(s.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition flex items-center gap-1.5 ${
+                  staffView === s.id ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400"
+                }`}
+              >
+                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: staffColorById[s.id] }} aria-hidden="true" />
+                {s.name}
+              </button>
+            ))}
+          </div>
+          {activeStaffView && (
+            <p className="text-sm text-gray-600 mt-2 font-medium">
+              {t("flt.viewingLabel").replace("{name}", activeStaffView.name)}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── Filter bar — one shared state feeds both Table and Calendar ── */}
       <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
@@ -472,6 +534,7 @@ export default function BookingsPage() {
           storageKey="7jwzat-calendar-view-bookings"
           defaultView="week"
           emptyStateMessage={bookings.length > 0 && filteredBookings.length === 0 ? t("bk.noFilterMatches") : undefined}
+          staffColors={staffView === "all" ? staffColorById : undefined}
         />
       ) : (
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
