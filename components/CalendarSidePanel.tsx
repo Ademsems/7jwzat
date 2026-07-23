@@ -5,6 +5,7 @@ import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { formatDateLocale, formatTimeLocale } from "@/lib/i18n/format";
 import { showToast } from "@/components/Toast";
 import { updateBookingStatus, type BookingStatus } from "@/lib/bookingActions";
+import { saveDayNote, deleteDayNote, type DayNote, type BlockType } from "@/lib/dayNoteActions";
 
 // ── Shared types (also used by Calendar.tsx) ────────────────────────────────
 export interface CalendarBooking {
@@ -73,17 +74,20 @@ export function CalendarCard({ booking, onClick, compact, staffColor }: { bookin
 }
 
 export function CalendarSidePanel({
-  panelState, dayBookings, answersMap, staffColors, onClose, onOpenBooking, onBackToDay, onStatusChanged,
+  panelState, dayBookings, answersMap, staffColors, dayNote, onClose, onOpenBooking, onBackToDay, onStatusChanged, onDayNoteChanged,
 }: {
   panelState: PanelState;
   dayBookings: CalendarBooking[];
   answersMap: CfAnswersMap;
   /** staff_id → accent color hex, shown as a small dot on cards (All Staff view only). */
   staffColors?: Record<string, string>;
+  /** The existing day note/block for the currently open day, if any. */
+  dayNote?: DayNote;
   onClose: () => void;
   onOpenBooking: (b: CalendarBooking) => void;
   onBackToDay: () => void;
   onStatusChanged: (id: string, status: BookingStatus) => void;
+  onDayNoteChanged: (date: string, note: DayNote | null) => void;
 }) {
   const { t, locale } = useLanguage();
   const [savingStatus, setSavingStatus] = useState(false);
@@ -124,8 +128,10 @@ export function CalendarSidePanel({
             date={panelState.date}
             bookings={dayBookings}
             staffColors={staffColors}
+            dayNote={dayNote}
             onClose={onClose}
             onOpenBooking={onOpenBooking}
+            onDayNoteChanged={onDayNoteChanged}
           />
         )}
         {panelState.mode === "detail" && (
@@ -165,8 +171,9 @@ function PanelHeader({ title, onClose, onBack }: { title: string; onClose: () =>
   );
 }
 
-function DayListPanel({ date, bookings, staffColors, onClose, onOpenBooking }: {
-  date: string; bookings: CalendarBooking[]; staffColors?: Record<string, string>; onClose: () => void; onOpenBooking: (b: CalendarBooking) => void;
+function DayListPanel({ date, bookings, staffColors, dayNote, onClose, onOpenBooking, onDayNoteChanged }: {
+  date: string; bookings: CalendarBooking[]; staffColors?: Record<string, string>; dayNote?: DayNote;
+  onClose: () => void; onOpenBooking: (b: CalendarBooking) => void; onDayNoteChanged: (date: string, note: DayNote | null) => void;
 }) {
   const { t, locale } = useLanguage();
   return (
@@ -187,6 +194,112 @@ function DayListPanel({ date, bookings, staffColors, onClose, onOpenBooking }: {
                 staffColor={b.staff_id ? staffColors?.[b.staff_id] : undefined}
               />
             ))
+        )}
+        <DayNoteEditor date={date} existing={dayNote} onChanged={onDayNoteChanged} />
+      </div>
+    </div>
+  );
+}
+
+const BLOCK_TYPE_OPTIONS: BlockType[] = ["none", "walk_ins_only", "fully_blocked"];
+const BLOCK_TYPE_LABEL_KEY: Record<BlockType, string> = {
+  none: "dn.blockNone",
+  walk_ins_only: "dn.blockWalkInsOnly",
+  fully_blocked: "dn.blockFullyBlocked",
+};
+
+/** Day note + block-out editor — bottom of the day-list panel, below the bookings for that day. */
+function DayNoteEditor({ date, existing, onChanged }: {
+  date: string; existing?: DayNote; onChanged: (date: string, note: DayNote | null) => void;
+}) {
+  const { t } = useLanguage();
+  const [note, setNote] = useState(existing?.note ?? "");
+  const [blockType, setBlockType] = useState<BlockType>(existing?.block_type ?? "none");
+  const [startTime, setStartTime] = useState(existing?.block_start_time ?? "");
+  const [endTime, setEndTime] = useState(existing?.block_end_time ?? "");
+  const [saving, setSaving] = useState(false);
+
+  // Re-sync local form state when the panel is opened for a different day.
+  useEffect(() => {
+    setNote(existing?.note ?? "");
+    setBlockType(existing?.block_type ?? "none");
+    setStartTime(existing?.block_start_time ?? "");
+    setEndTime(existing?.block_end_time ?? "");
+  }, [date, existing]);
+
+  async function handleSave() {
+    setSaving(true);
+    const { dayNote, error } = await saveDayNote({
+      date,
+      note: note.trim() || null,
+      block_type: blockType,
+      block_start_time: blockType !== "none" && startTime ? startTime : null,
+      block_end_time: blockType !== "none" && endTime ? endTime : null,
+    });
+    if (error) showToast(t("book.err.generic"), "error");
+    else { showToast(t("dn.saved")); onChanged(date, dayNote); }
+    setSaving(false);
+  }
+
+  async function handleClear() {
+    setSaving(true);
+    const { error } = await deleteDayNote(date);
+    if (error) showToast(t("book.err.generic"), "error");
+    else {
+      showToast(t("dn.cleared"));
+      setNote(""); setBlockType("none"); setStartTime(""); setEndTime("");
+      onChanged(date, null);
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{t("dn.sectionTitle")}</p>
+      <textarea
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        placeholder={t("dn.notePlaceholder")}
+        rows={3}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none mb-3"
+      />
+      <label className="block text-xs text-gray-500 mb-1">{t("dn.blockTypeLabel")}</label>
+      <select
+        value={blockType}
+        onChange={e => setBlockType(e.target.value as BlockType)}
+        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-3"
+      >
+        {BLOCK_TYPE_OPTIONS.map(bt => <option key={bt} value={bt}>{t(BLOCK_TYPE_LABEL_KEY[bt])}</option>)}
+      </select>
+
+      {blockType !== "none" && (
+        <div className="mb-3">
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-xs text-gray-500 mb-1">{t("dn.startTimeLabel")}</label>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-500 mb-1">{t("dn.endTimeLabel")}</label>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">{t("dn.allDay")}</p>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button type="button" onClick={handleSave} disabled={saving}
+          className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 transition">
+          {saving ? t("d.saving") : t("d.save")}
+        </button>
+        {existing && (
+          <button type="button" onClick={handleClear} disabled={saving}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 disabled:opacity-60 transition">
+            {t("dn.clearNote")}
+          </button>
         )}
       </div>
     </div>

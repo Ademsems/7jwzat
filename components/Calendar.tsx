@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { formatTimeLocale } from "@/lib/i18n/format";
 import type { BookingStatus } from "@/lib/bookingActions";
+import type { DayNote } from "@/lib/dayNoteActions";
 import {
   CalendarCard,
   CalendarSidePanel,
@@ -59,6 +60,22 @@ const DOT_CLASS: Record<string, string> = {
   muted: "bg-slate-400",
 };
 
+/** Small day-note/block indicator — distinct color per state, deliberately
+ *  unobtrusive (a single dot, no label) since it's an accent, not a status. */
+function dayNoteIndicatorColor(note: DayNote | undefined): string | null {
+  if (!note) return null;
+  if (note.block_type === "fully_blocked") return "bg-red-500";
+  if (note.block_type === "walk_ins_only") return "bg-amber-500";
+  if (note.note) return "bg-indigo-400";
+  return null;
+}
+function dayNoteIndicatorLabel(note: DayNote | undefined, t: (k: string) => string): string {
+  if (!note) return "";
+  if (note.block_type === "fully_blocked") return t("dn.indicatorBlocked");
+  if (note.block_type === "walk_ins_only") return t("dn.indicatorWalkIns");
+  return t("dn.indicatorNote");
+}
+
 /**
  * Reusable calendar (week + month views + side panel), used by the bookings
  * page and the dashboard. Purely presentational — receives all data as
@@ -67,6 +84,7 @@ const DOT_CLASS: Record<string, string> = {
  */
 export function Calendar({
   bookings, businessHours, answersMap, onBookingStatusChange, storageKey, defaultView = "week", compact = false, emptyStateMessage, staffColors,
+  dayNotes = [], onDayNoteChanged,
 }: {
   bookings: CalendarBooking[];
   businessHours: BusinessHourRow[];
@@ -83,6 +101,11 @@ export function Calendar({
    *  undefined/omit to render cards with no staff accent (e.g. when a single
    *  staff member's view is already active and there's nothing to distinguish). */
   staffColors?: Record<string, string>;
+  /** Owner day-notes/blocks, shown as a small indicator on day headers/cells
+   *  and editable from the side panel when a day is opened. Omit entirely
+   *  (e.g. the dashboard's read-only block) to render with no day-note UI. */
+  dayNotes?: DayNote[];
+  onDayNoteChanged?: (date: string, note: DayNote | null) => void;
 }) {
   const { t, locale } = useLanguage();
 
@@ -173,6 +196,12 @@ export function Calendar({
     return map;
   }, [bookings]);
 
+  const dayNoteByDate = useMemo(() => {
+    const map: Record<string, DayNote> = {};
+    dayNotes.forEach(n => { map[n.date] = n; });
+    return map;
+  }, [dayNotes]);
+
   const weekBookingCount = weekDays.reduce((sum, d) => sum + (dayMap[localDateStr(d)]?.length ?? 0), 0);
   const monthBookingCount = monthCells
     .filter(d => d.getMonth() === monthStart.getMonth())
@@ -203,7 +232,11 @@ export function Calendar({
     onBookingStatusChange(id, status);
     setPanelState(prev => (prev.mode === "detail" && prev.booking.id === id ? { ...prev, booking: { ...prev.booking, status } } : prev));
   }
+  function handleDayNoteChanged(date: string, note: DayNote | null) {
+    onDayNoteChanged?.(date, note);
+  }
   const panelDayBookings = panelState.mode === "day" ? (dayMap[panelState.date] ?? []) : [];
+  const panelDayNote = panelState.mode === "day" ? dayNoteByDate[panelState.date] : undefined;
 
   return (
     <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
@@ -261,12 +294,22 @@ export function Calendar({
               <div className="grid min-w-[420px]" style={{ gridTemplateColumns: `44px repeat(${visibleDays.length}, minmax(0,1fr))` }}>
                 <div />
                 {visibleDays.map(d => {
-                  const isToday = localDateStr(d) === todayStr;
+                  const dateStr = localDateStr(d);
+                  const isToday = dateStr === todayStr;
+                  const note = dayNoteByDate[dateStr];
+                  const dotColor = dayNoteIndicatorColor(note);
                   return (
-                    <div key={localDateStr(d)} className="text-center pb-2">
+                    <button
+                      key={dateStr}
+                      type="button"
+                      onClick={() => openDay(dateStr)}
+                      className="text-center pb-2 hover:bg-gray-50 rounded-t-lg transition relative"
+                      title={dotColor ? dayNoteIndicatorLabel(note, t) : undefined}
+                    >
                       <p className="text-[10px] text-gray-400 uppercase">{weekdayShort(d, locale)}</p>
                       <p className={`text-sm font-semibold ${isToday ? "text-emerald-600" : "text-gray-700"}`}>{d.getDate()}</p>
-                    </div>
+                      {dotColor && <span className={`absolute top-0.5 end-1.5 w-1.5 h-1.5 rounded-full ${dotColor}`} aria-hidden="true" />}
+                    </button>
                   );
                 })}
                 {hourRows.map(hour => (
@@ -317,15 +360,19 @@ export function Calendar({
               const isToday = dateStr === todayStr;
               const dayBookings = dayMap[dateStr] ?? [];
               const dotKeys = Array.from(new Set(dayBookings.map(b => (MUTED_TYPES.has(b.booking_type ?? "") ? "muted" : b.status))));
+              const note = dayNoteByDate[dateStr];
+              const noteColor = dayNoteIndicatorColor(note);
               return (
                 <button
                   key={dateStr}
                   type="button"
                   onClick={() => openDay(dateStr)}
-                  className={`aspect-square sm:aspect-auto ${compact ? "sm:h-12" : "sm:h-16"} rounded-lg border p-1 text-start flex flex-col transition ${
+                  title={noteColor ? dayNoteIndicatorLabel(note, t) : undefined}
+                  className={`relative aspect-square sm:aspect-auto ${compact ? "sm:h-12" : "sm:h-16"} rounded-lg border p-1 text-start flex flex-col transition ${
                     inMonth ? "border-gray-100 bg-white hover:border-emerald-300" : "border-transparent bg-gray-50/60"
                   } ${isToday ? "ring-2 ring-emerald-400" : ""}`}
                 >
+                  {noteColor && <span className={`absolute top-1 end-1 w-1.5 h-1.5 rounded-full ${noteColor}`} aria-hidden="true" />}
                   <span className={`text-[11px] font-semibold ${inMonth ? "text-gray-700" : "text-gray-300"}`}>{d.getDate()}</span>
                   {dayBookings.length > 0 && (
                     <div className="mt-auto flex items-center gap-0.5 flex-wrap">
@@ -345,10 +392,12 @@ export function Calendar({
         dayBookings={panelDayBookings}
         answersMap={answersMap}
         staffColors={staffColors}
+        dayNote={panelDayNote}
         onClose={closePanel}
         onOpenBooking={openDetailFromDay}
         onBackToDay={backToDay}
         onStatusChanged={handleStatusChanged}
+        onDayNoteChanged={handleDayNoteChanged}
       />
     </div>
   );

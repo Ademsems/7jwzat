@@ -269,6 +269,25 @@ export const ar: Record<string, string> = {
   "flt.allStaff": "كل الطاقم",
   "flt.viewingLabel": "تعرض: تقويم {name}",
 
+  // Day notes / block-outs (PLACEHOLDER ARABIC — pending founder review)
+  "dn.sectionTitle": "ملاحظة اليوم",
+  "dn.notePlaceholder": "أضف ملاحظة لهذا اليوم (تظهر لك فقط)…",
+  "dn.blockTypeLabel": "التوفر",
+  "dn.blockNone": "بلا حجب",
+  "dn.blockWalkInsOnly": "زبائن حضور مباشر فقط",
+  "dn.blockFullyBlocked": "محجوب بالكامل",
+  "dn.startTimeLabel": "وقت البداية",
+  "dn.endTimeLabel": "وقت النهاية",
+  "dn.allDay": "اتركه فارغاً لليوم بأكمله",
+  "dn.clearNote": "مسح الملاحظة",
+  "dn.saved": "تم حفظ ملاحظة اليوم.",
+  "dn.cleared": "تم مسح ملاحظة اليوم.",
+  "dn.indicatorNote": "توجد ملاحظة",
+  "dn.indicatorWalkIns": "زبائن حضور مباشر فقط",
+  "dn.indicatorBlocked": "محجوب بالكامل",
+  "dn.dayBlockedMessage": "هذا اليوم محجوب بالكامل عن الحجز الإلكتروني.",
+  "dn.walkInsOnlyMessage": "هذا اليوم لزبائن الحضور المباشر فقط — تواصل معنا للحجز.",
+
   // Calendar (PLACEHOLDER ARABIC — pending founder review)
   "cal.weekView": "أسبوع",
   "cal.monthView": "شهر",

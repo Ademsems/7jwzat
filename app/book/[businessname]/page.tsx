@@ -5,6 +5,7 @@ import { slugifyBusinessName } from "@/lib/slug";
 import { formatPrice, DEFAULT_CURRENCY } from "@/lib/currency";
 import { useLanguage, useApplyHtmlDir, LanguageToggle } from "@/lib/i18n/LanguageProvider";
 import { formatDateLocale, formatTimeLocale, type Locale } from "@/lib/i18n/format";
+import { isDayNoteWholeDayBlocked, isTimeBlockedByDayNote } from "@/lib/dayNoteActions";
 
 /**
  * Public booking page (customer-facing).
@@ -28,6 +29,12 @@ interface GroupSession {
   capacity: number; notes: string | null; booked_count: number;
 }
 interface CustomField { id: string; label: string; placeholder: string | null; is_required: boolean; }
+interface DayNoteBlock {
+  date: string;
+  block_type: "none" | "walk_ins_only" | "fully_blocked";
+  block_start_time: string | null; // null = all day
+  block_end_time: string | null;
+}
 
 /* ─── Helpers ────────────────────────────────────────────── */
 function generateSlots(start: string, end: string): string[] {
@@ -44,6 +51,15 @@ function generateSlots(start: string, end: string): string[] {
 }
 function isoDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+/**
+ * UI-side mirror of the day-block check (shared with the server via
+ * lib/dayNoteActions.ts) — the real enforcement is the server-side re-check
+ * in POST /api/create-booking; this only decides what the customer sees so
+ * they never even try a blocked slot.
+ */
+function filterBlockedSlots(slots: string[], note: DayNoteBlock | undefined): string[] {
+  return slots.filter(slot => !isTimeBlockedByDayNote(note ?? null, slot));
 }
 
 /* WhatsApp greeting text (header) + booking-reference text (confirmation). */
@@ -222,6 +238,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
   const [services, setServices] = useState<Service[]>([]);
   const [hours, setHours]       = useState<BusinessHour[]>([]);
   const [existingBookings, setExistingBookings] = useState<ExistingBooking[]>([]);
+  const [dayNotes, setDayNotes] = useState<DayNoteBlock[]>([]);
 
   // Staff
   const [staffByService, setStaffByService] = useState<Record<string, StaffMember[]>>({});
@@ -234,6 +251,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
   const [selectedTime, setSelectedTime]       = useState<string | null>(null);
   const [slots, setSlots]                     = useState<string[]>([]);
   const [closedDay, setClosedDay]             = useState(false);
+  const [dayBlockMessage, setDayBlockMessage] = useState<string | null>(null);
 
   // Group flow
   const [groupSessions, setGroupSessions]     = useState<GroupSession[]>([]);
@@ -281,6 +299,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
       setExistingBookings(data.existingBookings ?? []);
       setStaffByService(data.staffByService ?? {});
       setHasStaff(data.has_staff ?? false);
+      setDayNotes(data.dayNotes ?? []);
     } catch (e) {
       console.error("loadAll error:", e);
       setLoadError(true);
@@ -335,13 +354,23 @@ export default function BookPage({ params }: { params: { businessname: string } 
     setSelectedDate(dateStr);
     setSelectedTime(null);
     setFormError("");
+
+    const note = dayNotes.find(n => n.date === dateStr);
+    if (isDayNoteWholeDayBlocked(note)) {
+      setClosedDay(true);
+      setDayBlockMessage(note!.block_type === "walk_ins_only" ? t("dn.walkInsOnlyMessage") : t("dn.dayBlockedMessage"));
+      setSlots([]);
+      return;
+    }
+    setDayBlockMessage(null);
+
     const dow      = new Date(dateStr + "T00:00:00").getDay();
     const dayHours = hours.find(h => h.day_of_week === dow);
     if (!dayHours) { setClosedDay(true); setSlots([]); return; }
     const allSlots = generateSlots(dayHours.start_time, dayHours.end_time);
     const taken    = new Set(existingBookings.filter(b => b.booking_date === dateStr).map(b => b.booking_time.slice(0, 5)));
     setClosedDay(false);
-    setSlots(allSlots.filter(s => !taken.has(s)));
+    setSlots(filterBlockedSlots(allSlots.filter(s => !taken.has(s)), note));
   }
 
   function validateForm(): boolean {
@@ -697,7 +726,7 @@ export default function BookPage({ params }: { params: { businessname: string } 
                 </h2>
                 {closedDay
                   ? <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm">
-                      {t("book.closedDay")}
+                      {dayBlockMessage ?? t("book.closedDay")}
                     </div>
                   : slots.length === 0
                     ? <p className="text-gray-400 text-sm">{t("book.noSlots")}</p>

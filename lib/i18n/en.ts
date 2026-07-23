@@ -268,6 +268,25 @@ export const en: Record<string, string> = {
   "flt.allStaff": "All Staff",
   "flt.viewingLabel": "Viewing: {name}'s calendar",
 
+  // Day notes / block-outs (calendar side panel + public booking page)
+  "dn.sectionTitle": "Day Note",
+  "dn.notePlaceholder": "Add a note for this day (only visible to you)…",
+  "dn.blockTypeLabel": "Availability",
+  "dn.blockNone": "No block",
+  "dn.blockWalkInsOnly": "Walk-ins only",
+  "dn.blockFullyBlocked": "Fully blocked",
+  "dn.startTimeLabel": "Start time",
+  "dn.endTimeLabel": "End time",
+  "dn.allDay": "Leave blank for all day",
+  "dn.clearNote": "Clear note",
+  "dn.saved": "Day note saved.",
+  "dn.cleared": "Day note cleared.",
+  "dn.indicatorNote": "Has a note",
+  "dn.indicatorWalkIns": "Walk-ins only",
+  "dn.indicatorBlocked": "Fully blocked",
+  "dn.dayBlockedMessage": "This day is fully blocked for online booking.",
+  "dn.walkInsOnlyMessage": "This day is walk-ins only — contact us to book.",
+
   // Calendar (week/month views + side panel — shared by bookings page + dashboard)
   "cal.weekView": "Week",
   "cal.monthView": "Month",

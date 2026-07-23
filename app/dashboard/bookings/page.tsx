@@ -10,6 +10,7 @@ import { formatDateLocale } from "@/lib/i18n/format";
 import { Calendar, type CalendarBooking } from "@/components/Calendar";
 import { updateBookingStatus } from "@/lib/bookingActions";
 import { computeRange, parseLocalDate, type RangeKey } from "@/lib/analyticsRange";
+import type { DayNote } from "@/lib/dayNoteActions";
 
 type Status = "pending" | "confirmed" | "completed" | "cancelled";
 type BookingType = "customer" | "blocked" | "manual";
@@ -140,6 +141,7 @@ export default function BookingsPage() {
   const [bookings, setBookings]       = useState<Booking[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [businessHours, setBusinessHours] = useState<BusinessHourRow[]>([]);
+  const [dayNotes, setDayNotes] = useState<DayNote[]>([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState("");
   const [updatingId, setUpdatingId]   = useState<string | null>(null);
@@ -221,6 +223,19 @@ export default function BookingsPage() {
     ]);
     setBusinessHours(hoursRows ?? []);
 
+    // Day notes/blocks — via the authenticated API route (RLS-scoped), not a
+    // direct supabase call, matching the analytics-route auth pattern. Never
+    // block the rest of the page (e.g. if the table doesn't exist yet).
+    try {
+      const dnRes = await fetch("/api/day-notes");
+      if (dnRes.ok) {
+        const dnData = await dnRes.json();
+        setDayNotes(dnData.dayNotes ?? []);
+      }
+    } catch (e) {
+      console.error("bookings: day-notes fetch failed (non-fatal):", e);
+    }
+
     if (profile) setBusinessName(profile.business_name);
 
     const svcMap: Record<string, string> = {};
@@ -271,6 +286,15 @@ export default function BookingsPage() {
   // so switching Table ↔ Calendar always reflects the same data.
   function handleCalendarStatusChange(id: string, status: Status) {
     setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
+  }
+
+  // The side panel already calls saveDayNote/deleteDayNote itself — this
+  // only syncs local state so the indicator updates immediately, no reload.
+  function handleDayNoteChanged(date: string, note: DayNote | null) {
+    setDayNotes(prev => {
+      const rest = prev.filter(n => n.date !== date);
+      return note ? [...rest, note] : rest;
+    });
   }
 
   async function handleStaffChange(id: string, staffId: string) {
@@ -535,6 +559,8 @@ export default function BookingsPage() {
           defaultView="week"
           emptyStateMessage={bookings.length > 0 && filteredBookings.length === 0 ? t("bk.noFilterMatches") : undefined}
           staffColors={staffView === "all" ? staffColorById : undefined}
+          dayNotes={dayNotes}
+          onDayNoteChanged={handleDayNoteChanged}
         />
       ) : (
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">

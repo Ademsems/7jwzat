@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isTimeBlockedByDayNote } from "@/lib/dayNoteActions";
 
 /**
  * POST /api/create-booking
@@ -7,9 +8,11 @@ import { createClient } from "@supabase/supabase-js";
  * Server-side booking creation. Uses the service-role key to:
  *   1. Upsert customer profile (Task 2A) — wrapped in try/catch so a
  *      profile failure never blocks the booking itself.
- *   2. Check for double-booking (1-on-1) or capacity (group)
- *   3. Insert the booking with customer_id, staff_id, staff_preference
- *   4. Fire confirmation emails (non-blocking)
+ *   2. Reject the request if the date/time falls inside an owner day-block
+ *      (day_notes) — the real enforcement boundary, not just a UI hide.
+ *   3. Check for double-booking (1-on-1) or capacity (group)
+ *   4. Insert the booking with customer_id, staff_id, staff_preference
+ *   5. Fire confirmation emails (non-blocking)
  */
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -93,7 +96,28 @@ export async function POST(req: NextRequest) {
     console.error("create-booking: customer profile upsert failed (non-fatal):", profileErr);
   }
 
-  // ── 2. Conflict check ──────────────────────────────────────────────────────
+  // ── 2. Day-block enforcement ────────────────────────────────────────────────
+  // The real enforcement boundary — the booking page's own slot list is only
+  // a UI convenience; a customer bypassing it and posting directly here must
+  // still be rejected. Applies to both 1-on-1 and group bookings (both send
+  // bookingDate/bookingTime — see app/book/[businessname]/page.tsx).
+  if (bookingDate) {
+    const { data: dayNote } = await supabase
+      .from("day_notes")
+      .select("block_type, block_start_time, block_end_time")
+      .eq("business_id", businessId)
+      .eq("date", bookingDate)
+      .maybeSingle();
+
+    if (isTimeBlockedByDayNote(dayNote, bookingTime ?? null)) {
+      return NextResponse.json(
+        { error: "This time is not available for online booking. Please contact the business directly." },
+        { status: 409 }
+      );
+    }
+  }
+
+  // ── 3. Conflict check ──────────────────────────────────────────────────────
   if (groupSessionId) {
     const [{ count }, { data: session }] = await Promise.all([
       supabase
@@ -133,7 +157,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 3. Insert booking ──────────────────────────────────────────────────────
+  // ── 4. Insert booking ──────────────────────────────────────────────────────
   const { error: insErr } = await supabase.from("bookings").insert({
     user_id:          businessId,
     service_id:       serviceId,
@@ -156,7 +180,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: insErr.message }, { status: 500 });
   }
 
-  // ── 4. Save custom field answers (non-blocking — never block booking) ────────
+  // ── 5. Save custom field answers (non-blocking — never block booking) ────────
   try {
     if (
       customFieldAnswers &&
@@ -192,7 +216,7 @@ export async function POST(req: NextRequest) {
     console.error("create-booking: custom field answers save failed (non-fatal):", cfErr);
   }
 
-  // ── 5. Fire confirmation emails (non-blocking) ─────────────────────────────
+  // ── 6. Fire confirmation emails (non-blocking) ─────────────────────────────
   const origin = new URL(req.url).origin;
   fetch(`${origin}/api/send-booking-emails`, {
     method: "POST",

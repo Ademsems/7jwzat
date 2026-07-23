@@ -6,7 +6,8 @@ import { createClient } from "@supabase/supabase-js";
  *
  * Returns ALL data the public booking page needs in one call:
  *   business, services, hours, existingBookings (next 30 days),
- *   staff (active staff per service), has_staff flag
+ *   staff (active staff per service), has_staff flag,
+ *   dayNotes (owner day-notes/blocks, next 30 days)
  */
 
 function slugify(name: string): string {
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
   const today   = localDateStr(0);
   const maxDate = localDateStr(30);
 
-  const [svcRes, hrRes, bkRes, staffRes, ssRes, cfRes, cfsRes] = await Promise.all([
+  const [svcRes, hrRes, bkRes, staffRes, ssRes, cfRes, cfsRes, dayNotesRes] = await Promise.all([
     supabase
       .from("services")
       .select("id, name, duration, price, is_group_service")
@@ -123,13 +124,24 @@ export async function GET(req: NextRequest) {
           .select("custom_field_id")
           .eq("service_id", serviceId)
       : Promise.resolve({ data: [], error: null }),
+    // Day-level notes/blocks (walk-ins-only, fully blocked) for the same
+    // window as existingBookings — the booking page's slot calculation
+    // consults this; the real enforcement boundary is create-booking's own
+    // server-side re-check, this is just what the UI hides.
+    supabase
+      .from("day_notes")
+      .select("date, block_type, block_start_time, block_end_time")
+      .eq("business_id", business.id)
+      .gte("date", today)
+      .lte("date", maxDate),
   ]);
 
-  if (svcRes.error)   console.error("booking-page-data: services error:",      svcRes.error.message);
-  if (hrRes.error)    console.error("booking-page-data: hours error:",         hrRes.error.message);
-  if (bkRes.error)    console.error("booking-page-data: bookings error:",      bkRes.error.message);
-  if (staffRes.error) console.error("booking-page-data: staff error:",         staffRes.error.message);
-  if (cfRes.error)    console.error("booking-page-data: custom_fields error:", cfRes.error.message);
+  if (svcRes.error)      console.error("booking-page-data: services error:",      svcRes.error.message);
+  if (hrRes.error)       console.error("booking-page-data: hours error:",         hrRes.error.message);
+  if (bkRes.error)       console.error("booking-page-data: bookings error:",      bkRes.error.message);
+  if (staffRes.error)    console.error("booking-page-data: staff error:",         staffRes.error.message);
+  if (cfRes.error)       console.error("booking-page-data: custom_fields error:", cfRes.error.message);
+  if (dayNotesRes.error) console.error("booking-page-data: day_notes error:",     dayNotesRes.error.message);
 
   // Build staffByService map: { [serviceId]: StaffMember[] }
   const allStaff = staffRes.data ?? [];
@@ -175,5 +187,6 @@ export async function GET(req: NextRequest) {
     staffByService:   staffMap,
     has_staff:        allStaff.length > 0,
     customFields,
+    dayNotes:         dayNotesRes.data ?? [],
   });
 }
