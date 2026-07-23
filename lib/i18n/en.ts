@@ -492,6 +492,30 @@ export const en: Record<string, string> = {
   "an2.topByVisits": "Top Customers by Visits",
   "an2.topBySpend": "Top Customers by Spend",
 
+  // Analytics v2 — Days & Timings, Services, Staff (prompt 2/2)
+  "an2.daysTimingsTitle": "Days & Timings",
+  "an2.heatmapTitle": "Weekly Heatmap",
+  "an2.volumeTrendTitle": "Booking Volume",
+  "an2.quietestDay": "Quietest Day",
+  "an2.quietestHour": "Quietest Hour",
+  "an2.quietestSub": "Good time for a promotion",
+
+  "an2.servicesTitle": "Services",
+  "an2.avgPrice": "avg. price",
+  "an2.zeroBookingServicesTitle": "Not booked this period",
+  "an2.noServicesConfigured": "No services added yet.",
+  "an2.bookingsLabel": "bookings",
+  "an2.revenueLabel": "revenue",
+  "an2.cancelRateLabel": "cancel rate",
+  "an2.peakHourLabel": "peak hour",
+
+  "an2.staffTitle": "Staff",
+  "an2.noStaffConfigured": "No staff members added yet.",
+  "an2.noStaffAssigned": "No Staff Assigned",
+  "an2.staffRequested": "Staff Requested",
+  "an2.noPreference": "No Preference",
+  "an2.staffPreferenceSub": "Of online bookings",
+
   // Customer detail extra
   "cust.colDate": "Date",
   "cust.colTime": "Time",

@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { formatPrice } from "@/lib/currency";
+import { formatTimeLocale } from "@/lib/i18n/format";
 import {
   type RangeKey,
   type DateRange,
@@ -145,6 +146,23 @@ function uniqueCustomerIds(periodBookings: ApiBooking[]): string[] {
   return Array.from(ids);
 }
 
+function bookingHour(b: ApiBooking): number | null {
+  const h = parseInt(b.booking_time.split(":")[0], 10);
+  return isNaN(h) ? null : h;
+}
+
+/** Locale-correct short weekday abbreviation for a Date.getDay() index (0=Sun..6=Sat). */
+function dowLabel(dow: number, locale: "ar" | "en"): string {
+  const today = new Date();
+  const sunday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay());
+  const d = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + dow);
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar-JO" : "en-GB", { weekday: "short" }).format(d);
+}
+
+function hourLabel(hour: number, locale: "ar" | "en"): string {
+  return formatTimeLocale(`${String(hour).padStart(2, "0")}:00`, locale);
+}
+
 // ── Small presentational helpers (pure CSS, no charting library) ───────────
 function Sk({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-gray-200 rounded-xl ${className ?? ""}`} />;
@@ -229,10 +247,104 @@ function RankedList({ items, emptyMsg }: { items: RankedItem[]; emptyMsg: string
   );
 }
 
+interface StatRowData { id: string; name: string; stats: { label: string; value: string }[]; }
+function StatRowList({ rows, emptyMsg }: { rows: StatRowData[]; emptyMsg: string }) {
+  if (rows.length === 0) return <EmptyState text={emptyMsg} />;
+  return (
+    <div className="space-y-2">
+      {rows.map(r => (
+        <div key={r.id} className="border border-gray-100 rounded-lg px-3 py-2.5">
+          <p className="text-sm font-medium text-gray-800 mb-1.5 truncate">{r.name}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {r.stats.map((s, i) => (
+              <span key={i} className="text-xs text-gray-500">
+                <span className="font-semibold text-gray-700">{s.value}</span> {s.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Daily booking-volume bars (pure CSS), horizontally scrollable for long ranges. */
+function CountBarChart({ bars }: { bars: { label: string; value: number }[] }) {
+  const max = Math.max(...bars.map(b => b.value), 1);
+  const allZero = bars.every(b => b.value === 0);
+  if (allZero) return null;
+  return (
+    <div className="overflow-x-auto">
+      <div style={{ minWidth: `${Math.max(bars.length * 20, 300)}px` }}>
+        <div className="relative flex items-end gap-1 h-32 border-b border-l border-gray-100">
+          <div className="absolute inset-x-0 top-0 border-t border-dashed border-gray-200 pointer-events-none" />
+          {bars.map((bar, i) => (
+            <div key={i} className="group flex flex-col justify-end items-stretch flex-1 h-full relative">
+              {bar.value > 0 && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover:opacity-100 pointer-events-none transition z-20">
+                  <div className="bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap shadow-lg">{bar.value}</div>
+                </div>
+              )}
+              <div
+                className="w-full bg-emerald-500 rounded-t hover:bg-emerald-600 transition-colors"
+                style={{ height: `${(bar.value / max) * 100}%`, minHeight: bar.value > 0 ? "3px" : "0" }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-1 mt-1.5">
+          {bars.map((bar, i) => (
+            <div key={i} className="flex-1 text-center overflow-hidden">
+              <span className="text-[10px] text-gray-400 truncate block">{bar.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function heatCellColor(count: number, max: number): string {
+  if (count === 0) return "#f3f4f6"; // gray-100
+  const intensity = 0.18 + (count / max) * 0.72;
+  return `rgba(16,185,129,${intensity.toFixed(2)})`; // emerald-500 scale
+}
+
+/** 7-row (Sun–Sat) × N-column (observed hour range) booking density heatmap. */
+function Heatmap({ grid, hourCols, dowLabels, hourLabels }: {
+  grid: number[][]; hourCols: number[]; dowLabels: string[]; hourLabels: string[];
+}) {
+  const max = Math.max(1, ...grid.flat());
+  return (
+    <div className="overflow-x-auto">
+      <div style={{ minWidth: `${Math.max(hourCols.length * 34 + 48, 320)}px` }}>
+        <div className="flex gap-0.5 mb-1 ps-12">
+          {hourCols.map((h, i) => (
+            <div key={h} className="flex-1 text-center text-[9px] text-gray-400 truncate">{i % 2 === 0 ? hourLabels[i] : ""}</div>
+          ))}
+        </div>
+        {grid.map((row, dow) => (
+          <div key={dow} className="flex items-center gap-0.5 mb-0.5">
+            <div className="w-12 shrink-0 text-[11px] text-gray-500 text-end pe-1">{dowLabels[dow]}</div>
+            {row.map((count, i) => (
+              <div
+                key={i}
+                className="flex-1 aspect-square rounded-sm min-w-[14px]"
+                style={{ backgroundColor: heatCellColor(count, max) }}
+                title={`${dowLabels[dow]} ${hourLabels[i]}: ${count}`}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Analytics Page ──────────────────────────────────────────────────────
 export default function AnalyticsPage() {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
 
   const [userId, setUserId] = useState<string | null>(null);
   const [rangeKey, setRangeKey] = useState<RangeKey>("this-month");
@@ -343,7 +455,7 @@ export default function AnalyticsPage() {
   if (!data) return null;
 
   // ── Derived analytics (computed from the raw API payload) ───────────────
-  const { currency, range, bookings, services, customers, history } = data;
+  const { currency, range, bookings, services, staff, customers, history } = data;
 
   const svcById: Record<string, ApiService> = {};
   services.forEach(s => { svcById[s.id] = s; });
@@ -417,6 +529,166 @@ export default function AnalyticsPage() {
 
   const hasAnyRealBooking = curStats.total > 0;
   const hasAnyCustomerActivity = curCustIds.length > 0;
+
+  // Shared "real" (non-blocked) current-period bookings for the sections below —
+  // blocked slots reference an arbitrary service/staff FK and must never be
+  // counted as if they were customer traffic.
+  const curReal = curBookings.filter(b => b.booking_type !== "blocked");
+
+  // ── Days & Timings ───────────────────────────────────────────────────────
+  const dowCounts = Array(7).fill(0) as number[];
+  const hourCounts: Record<number, number> = {};
+  curReal.forEach(b => {
+    dowCounts[parseLocalDate(b.booking_date).getDay()]++;
+    const h = bookingHour(b);
+    if (h !== null) hourCounts[h] = (hourCounts[h] ?? 0) + 1;
+  });
+
+  const dowBars = dowCounts.map((count, dow) => ({ label: dowLabel(dow, locale), value: count }));
+
+  const topHours: RankedItem[] = Object.entries(hourCounts)
+    .sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 8)
+    .map(([h, count]) => ({ id: h, name: hourLabel(Number(h), locale), primary: `${count} ${bookingWord(count)}` }));
+
+  const hoursPresent = Object.keys(hourCounts).map(Number).sort((a, b) => a - b);
+  const heatMinHour = hoursPresent.length > 0 ? hoursPresent[0] : 9;
+  const heatMaxHour = hoursPresent.length > 0 ? hoursPresent[hoursPresent.length - 1] : 17;
+  const heatHourCols: number[] = [];
+  for (let h = heatMinHour; h <= heatMaxHour; h++) heatHourCols.push(h);
+  const heatGrid: number[][] = Array.from({ length: 7 }, () => Array(heatHourCols.length).fill(0));
+  curReal.forEach(b => {
+    const dow = parseLocalDate(b.booking_date).getDay();
+    const h = bookingHour(b);
+    if (h === null) return;
+    const col = heatHourCols.indexOf(h);
+    if (col >= 0) heatGrid[dow][col]++;
+  });
+  const heatDowLabels = Array.from({ length: 7 }, (_, i) => dowLabel(i, locale));
+  const heatHourLabels = heatHourCols.map(h => hourLabel(h, locale));
+
+  let quietestDow = 0;
+  dowCounts.forEach((c, i) => { if (c < dowCounts[quietestDow]) quietestDow = i; });
+  let quietestHour: number | null = null;
+  heatHourCols.forEach(h => {
+    const c = hourCounts[h] ?? 0;
+    if (quietestHour === null || c < (hourCounts[quietestHour] ?? 0)) quietestHour = h;
+  });
+
+  function buildVolumeBars(): { label: string; value: number }[] {
+    const out: { label: string; value: number }[] = [];
+    const s = parseLocalDate(range.start);
+    const e = parseLocalDate(range.end);
+    const cur = new Date(s);
+    while (cur <= e) {
+      const ds = localDateStr(cur);
+      out.push({ label: String(cur.getDate()), value: curReal.filter(b => b.booking_date === ds).length });
+      cur.setDate(cur.getDate() + 1);
+    }
+    return out;
+  }
+  const volumeBars = buildVolumeBars();
+
+  // ── Services ──────────────────────────────────────────────────────────────
+  interface SvcAgg { count: number; revenue: number; completedPriced: number; visits: Record<string, number>; }
+  const svcAgg: Record<string, SvcAgg> = {};
+  curReal.forEach(b => {
+    if (!b.service_id) return;
+    const agg = (svcAgg[b.service_id] ??= { count: 0, revenue: 0, completedPriced: 0, visits: {} });
+    agg.count++;
+    if (b.status === "completed") {
+      const price = priceOf(b, svcById);
+      if (price !== null) { agg.revenue += price; agg.completedPriced++; }
+    }
+    if (b.customer_id) agg.visits[b.customer_id] = (agg.visits[b.customer_id] ?? 0) + 1;
+  });
+
+  const serviceRows: StatRowData[] = services
+    .map(s => {
+      const agg = svcAgg[s.id];
+      const count = agg?.count ?? 0;
+      const revenue = agg?.revenue ?? 0;
+      const avgPrice = agg && agg.completedPriced > 0 ? agg.revenue / agg.completedPriced : null;
+      const visitCounts = agg ? Object.values(agg.visits) : [];
+      const repeatCustomers = visitCounts.filter(v => v > 1).length;
+      const repeatRate = visitCounts.length > 0 ? (repeatCustomers / visitCounts.length) * 100 : null;
+      return {
+        id: s.id, name: s.name, count,
+        stats: [
+          { label: t("an2.bookingsLabel"), value: String(count) },
+          { label: t("an2.revenueLabel"), value: formatPrice(revenue, currency) },
+          { label: t("an2.avgPrice"), value: avgPrice !== null ? formatPrice(avgPrice, currency) : "—" },
+          { label: t("an2.repeatRate"), value: repeatRate !== null ? `${repeatRate.toFixed(0)}%` : "—" },
+        ],
+      };
+    })
+    .sort((a, b) => b.count - a.count)
+    .map(({ id, name, stats }) => ({ id, name, stats })); // drop the sort-only `count` field
+  const zeroBookingServiceNames = services.filter(s => !svcAgg[s.id] || svcAgg[s.id].count === 0).map(s => s.name);
+
+  // ── Staff ─────────────────────────────────────────────────────────────────
+  interface StaffAgg { count: number; revenue: number; cancelled: number; hourCounts: Record<number, number>; }
+  const staffAgg: Record<string, StaffAgg> = {};
+  let unassignedCount = 0, unassignedRevenue = 0, unassignedCancelled = 0;
+  const unassignedHourCounts: Record<number, number> = {};
+
+  curReal.forEach(b => {
+    const price = b.status === "completed" ? priceOf(b, svcById) : null;
+    const h = bookingHour(b);
+    if (b.staff_id) {
+      const agg = (staffAgg[b.staff_id] ??= { count: 0, revenue: 0, cancelled: 0, hourCounts: {} });
+      agg.count++;
+      if (b.status === "cancelled") agg.cancelled++;
+      if (price !== null) agg.revenue += price;
+      if (h !== null) agg.hourCounts[h] = (agg.hourCounts[h] ?? 0) + 1;
+    } else {
+      unassignedCount++;
+      if (b.status === "cancelled") unassignedCancelled++;
+      if (price !== null) unassignedRevenue += price;
+      if (h !== null) unassignedHourCounts[h] = (unassignedHourCounts[h] ?? 0) + 1;
+    }
+  });
+
+  function peakHourLabel(counts: Record<number, number>): string {
+    const entries = Object.entries(counts);
+    if (entries.length === 0) return "—";
+    const [h] = entries.sort((a, b) => b[1] - a[1])[0];
+    return hourLabel(Number(h), locale);
+  }
+
+  const staffRows: StatRowData[] = staff
+    .map(s => {
+      const agg = staffAgg[s.id];
+      const count = agg?.count ?? 0;
+      const cancellationRate = agg && agg.count > 0 ? (agg.cancelled / agg.count) * 100 : null;
+      return {
+        id: s.id, name: s.name, count,
+        stats: [
+          { label: t("an2.bookingsLabel"), value: String(count) },
+          { label: t("an2.revenueLabel"), value: formatPrice(agg?.revenue ?? 0, currency) },
+          { label: t("an2.cancelRateLabel"), value: cancellationRate !== null ? `${cancellationRate.toFixed(0)}%` : "—" },
+          { label: t("an2.peakHourLabel"), value: agg ? peakHourLabel(agg.hourCounts) : "—" },
+        ],
+      };
+    })
+    .sort((a, b) => b.count - a.count)
+    .map(({ id, name, stats }) => ({ id, name, stats }));
+
+  const unassignedRow: StatRowData = {
+    id: "__unassigned__",
+    name: t("an2.noStaffAssigned"),
+    stats: [
+      { label: t("an2.bookingsLabel"), value: String(unassignedCount) },
+      { label: t("an2.revenueLabel"), value: formatPrice(unassignedRevenue, currency) },
+      { label: t("an2.cancelRateLabel"), value: unassignedCount > 0 ? `${((unassignedCancelled / unassignedCount) * 100).toFixed(0)}%` : "—" },
+      { label: t("an2.peakHourLabel"), value: peakHourLabel(unassignedHourCounts) },
+    ],
+  };
+  // Always appended — unassigned bookings must never silently disappear from totals.
+  const staffRowsWithUnassigned = [...staffRows, unassignedRow];
+
+  const onlineBookings = curReal.filter(b => b.booking_type === "customer");
+  const staffRequestedCount = onlineBookings.filter(b => b.staff_id).length;
+  const staffNoPreferenceCount = onlineBookings.length - staffRequestedCount;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -620,6 +892,98 @@ export default function AnalyticsPage() {
                   <RankedList items={topBySpend} emptyMsg={t("an2.noTopCustomers")} />
                 </div>
               </div>
+            </div>
+          )}
+        </Section>
+
+        {/* ── Days & Timings ── */}
+        <Section title={t("an2.daysTimingsTitle")}>
+          {!hasAnyRealBooking ? (
+            <EmptyState text={t("an2.notEnoughData")} />
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{t("an2.quietestDay")}</p>
+                  <p className="text-xl font-bold text-gray-800">{dowLabel(quietestDow, locale)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{t("an2.quietestSub")} · {dowCounts[quietestDow]} {bookingWord(dowCounts[quietestDow])}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{t("an2.quietestHour")}</p>
+                  <p className="text-xl font-bold text-gray-800">{quietestHour !== null ? hourLabel(quietestHour, locale) : "—"}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {t("an2.quietestSub")}{quietestHour !== null ? ` · ${hourCounts[quietestHour] ?? 0} ${bookingWord(hourCounts[quietestHour] ?? 0)}` : ""}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-gray-600 mb-3">{t("an2.volumeTrendTitle")}</p>
+                <div dir="ltr"><CountBarChart bars={volumeBars} /></div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-sm font-semibold text-gray-600 mb-3">{t("an.busiestDays")}</p>
+                  <div dir="ltr"><CountBarChart bars={dowBars} /></div>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-600 mb-3">{t("an.busiestTimes")}</p>
+                  <RankedList items={topHours} emptyMsg={t("an2.notEnoughData")} />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-gray-600 mb-3">{t("an2.heatmapTitle")}</p>
+                <div dir="ltr">
+                  <Heatmap grid={heatGrid} hourCols={heatHourCols} dowLabels={heatDowLabels} hourLabels={heatHourLabels} />
+                </div>
+              </div>
+            </div>
+          )}
+        </Section>
+
+        {/* ── Services ── */}
+        <Section title={t("an2.servicesTitle")}>
+          {services.length === 0 ? (
+            <EmptyState text={t("an2.noServicesConfigured")} />
+          ) : !hasAnyRealBooking ? (
+            <EmptyState text={t("an2.notEnoughData")} />
+          ) : (
+            <div>
+              <StatRowList rows={serviceRows} emptyMsg={t("an2.notEnoughData")} />
+              {zeroBookingServiceNames.length > 0 && (
+                <div className="mt-4 bg-amber-50 border border-amber-100 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-amber-700 mb-1">{t("an2.zeroBookingServicesTitle")}</p>
+                  <p className="text-xs text-amber-600">{zeroBookingServiceNames.join(", ")}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </Section>
+
+        {/* ── Staff ── */}
+        <Section title={t("an2.staffTitle")}>
+          {staff.length === 0 ? (
+            <EmptyState text={t("an2.noStaffConfigured")} />
+          ) : !hasAnyRealBooking ? (
+            <EmptyState text={t("an2.notEnoughData")} />
+          ) : (
+            <div className="space-y-6">
+              {onlineBookings.length > 0 && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-indigo-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-bold text-indigo-700">{staffRequestedCount}</p>
+                    <p className="text-xs text-indigo-500 mt-1 font-medium">{t("an2.staffRequested")}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-bold text-gray-700">{staffNoPreferenceCount}</p>
+                    <p className="text-xs text-gray-500 mt-1 font-medium">{t("an2.noPreference")}</p>
+                  </div>
+                  <p className="col-span-2 text-xs text-gray-400 -mt-2">{t("an2.staffPreferenceSub")}</p>
+                </div>
+              )}
+              <StatRowList rows={staffRowsWithUnassigned} emptyMsg={t("an2.notEnoughData")} />
             </div>
           )}
         </Section>

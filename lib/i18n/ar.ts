@@ -493,6 +493,30 @@ export const ar: Record<string, string> = {
   "an2.topByVisits": "أفضل العملاء حسب الزيارات",
   "an2.topBySpend": "أفضل العملاء حسب الإنفاق",
 
+  // Analytics v2 — الأيام والتوقيت، الخدمات، الطاقم (الجزء 2/2 — PLACEHOLDER ARABIC)
+  "an2.daysTimingsTitle": "الأيام والتوقيت",
+  "an2.heatmapTitle": "الخريطة الحرارية الأسبوعية",
+  "an2.volumeTrendTitle": "حجم الحجوزات",
+  "an2.quietestDay": "أهدأ يوم",
+  "an2.quietestHour": "أهدأ ساعة",
+  "an2.quietestSub": "وقت مناسب لعرض ترويجي",
+
+  "an2.servicesTitle": "الخدمات",
+  "an2.avgPrice": "متوسط السعر",
+  "an2.zeroBookingServicesTitle": "لم تُحجز في هذه الفترة",
+  "an2.noServicesConfigured": "لم تتم إضافة خدمات بعد.",
+  "an2.bookingsLabel": "حجوزات",
+  "an2.revenueLabel": "الإيرادات",
+  "an2.cancelRateLabel": "معدل الإلغاء",
+  "an2.peakHourLabel": "أكثر ساعة ازدحاماً",
+
+  "an2.staffTitle": "الطاقم",
+  "an2.noStaffConfigured": "لم تتم إضافة أعضاء طاقم بعد.",
+  "an2.noStaffAssigned": "لا يوجد طاقم معيّن",
+  "an2.staffRequested": "طاقم مطلوب تحديداً",
+  "an2.noPreference": "بدون تفضيل",
+  "an2.staffPreferenceSub": "من الحجوزات عبر الإنترنت",
+
   // Customer detail extra
   "cust.colDate": "التاريخ",
   "cust.colTime": "الوقت",
