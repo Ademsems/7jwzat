@@ -79,7 +79,9 @@ app/
 └── dashboard/
     ├── layout.tsx              Wraps all dashboard pages with DashboardNav sidebar
     ├── page.tsx                Home: today's stats, booking link, quick links
-    ├── analytics/              8-section analytics: revenue, bookings, customers, etc.
+    ├── analytics/              BI dashboard w/ global date-range filter (see §3 API Routes,
+    │                           /api/analytics). Sections so far: Revenue, Bookings, Customers.
+    │                           Days & Timings / Services / Staff sections pending (prompt 2).
     ├── bookings/page.tsx       Booking list with status management
     ├── bookings/new/page.tsx   Manual booking or blocked-time entry
     ├── services/page.tsx       CRUD for services (name, duration, price, group flag)
@@ -101,6 +103,7 @@ app/
 | `/api/create-booking` | POST | Service-role (public) | Upserts customer profile, checks for conflicts, inserts booking, saves custom field answers |
 | `/api/group-sessions` | GET | Service-role (public) | Returns upcoming group sessions with live booked-count for a service |
 | `/api/send-booking-emails` | POST | None (called server-side) | Fires customer confirmation + owner notification emails via Resend |
+| `/api/analytics` | GET | **Authenticated** (anon key + session cookies, NOT service-role) | Tenant-scoped analytics data layer. Auth via `@supabase/ssr` reading the caller's session cookies (same pattern as `middleware.ts`); every query runs through the anon-key client so RLS enforces tenant isolation even if a `.eq("user_id", …)` filter were ever dropped. Query params `start`/`end`/`prevStart`/`prevEnd` (all `YYYY-MM-DD`); returns raw, unaggregated rows (bookings, services, staff, customers, all-time booking history) so new dashboard sections can derive their own breakdowns without a route change. |
 
 ### Key Library Modules (`lib/`)
 
@@ -110,6 +113,7 @@ app/
 | `lib/email.ts` | `sendCustomerEmail` + `sendOwnerEmail` via Resend. Bilingual (Arabic primary, English secondary). Lazily constructs Resend client to avoid build failures. |
 | `lib/currency.ts` | `COUNTRIES` list (Jordan first), `formatPrice(amount, currency)`, `DEFAULT_CURRENCY = "JOD"`, `currencyForCountry()` |
 | `lib/slug.ts` | `slugifyBusinessName()` + `bookingUrl()` — deterministic slug from business name |
+| `lib/analyticsRange.ts` | `computeRange(key, customStart?, customEnd?)` — timezone-safe date-range + comparison-period math for the analytics page (`this-week` / `this-month` / `last-30` / `last-90` / `custom`). Builds dates from local `Date` field getters only, never `toISOString()`, and range ends are always the true end of the period (not "today") so later-dated bookings already on the books aren't dropped. |
 | `lib/i18n/en.ts` | All English UI strings (flat key→value) |
 | `lib/i18n/ar.ts` | All Arabic UI strings — **PLACEHOLDER MSA pending founder review** |
 | `lib/i18n/LanguageProvider.tsx` | React context: `locale`, `t()`, `country`, `currency`, geo detection from Vercel `x-vercel-ip-country` header via cookie |
@@ -483,6 +487,7 @@ Vercel saw none of the work until a manual merge. This must not repeat.
 | Grouped sidebar nav | Collapsible nav groups (Calendar & Availability, Setup, Insights) with localStorage persistence |
 | Sentry error tracking | `@sentry/nextjs` with client/server/edge configs, Session Replay, `global-error.tsx` boundary |
 | 2026-07-22 — Core-app rebrand (7jwzat → Sajjel) | Latin brand text "7jwzat" → "Sajjel" in `DashboardNav.tsx` sidebar logo (desktop + mobile), the logo link on all four `app/auth/*/page.tsx` pages (login, signup ×2, reset-password, forgot-password), and the "Powered by" line in both `lib/email.ts` templates. `7jwzat-nav-*` localStorage keys and the Sentry org slug in `next.config.js` intentionally left unchanged. No hardcoded Arabic "حجوزات" brand text found in core-app files (verified via repo-wide search) — Arabic brand copy lives in `lib/i18n/ar.ts`, owned by the marketing/front session. |
+| 2026-07-22 — Analytics rebuild, prompt 1/2 (data layer + Revenue/Bookings/Customers) | Full rebuild of the analytics page as a real business-intelligence view, replacing the old shallow-stats version. **Data layer:** new `app/api/analytics/route.ts` — the first *authenticated* (non-public) API route in the app; auth via `@supabase/ssr` reading session cookies (`middleware.ts` pattern), queries run through the anon-key client so RLS is the real tenant-isolation boundary (verified directly: the exact query with no `user_id` filter, run as an authenticated test tenant, returned only that tenant's own rows). Returns raw unaggregated rows (bookings/services/staff/customers/all-time history), not pre-aggregated per-section, so prompt 2 (Days & Timings, Services, Staff) can extend the same endpoint. New `lib/analyticsRange.ts` provides the `this-week` / `this-month` / `last-30` / `last-90` / `custom` range math plus matching previous-period bounds for comparisons, built entirely from local `Date` getters (never `toISOString()`) with range ends always the true end of the period. **Sections shipped:** Revenue Overview (total/pending/lost revenue, avg booking value, "price on request" bookings excluded from revenue math with a visible count — verified against a real service with `price: null`), Bookings (5-way status split incl. blocked, cancellation/completion rate, online vs manual vs blocked source split, average lead time, individual vs group), Customers (unique/new/returning, repeat rate, avg bookings/customer, lapsed-60-days count, top 10 by visits and by spend — blocked entries excluded via `customer_id`/`booking_type` checks, matching the existing `customers/page.tsx` convention). Every section has an explicit empty/low-data state (no NaN or division-by-zero) gated on real-booking and unique-customer counts. All new UI strings added as `an2.*` keys to both `lib/i18n/en.ts` and `ar.ts` (existing `an.*` keys untouched, some reused as-is). Old sections (revenue-over-time chart, top services, team performance, busiest days/times, new-vs-returning callout) were removed from this page; prompt 2 re-adds the days/timings/services/staff views on the same data layer. |
 
 ---
 
