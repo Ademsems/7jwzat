@@ -235,6 +235,7 @@ export default function SettingsPage() {
               </label>
               <textarea
                 rows={3}
+                dir="ltr"
                 value={bizForm.address}
                 onChange={e => setBizForm(f => ({ ...f, address: e.target.value }))}
                 placeholder={t("settings.addressPlaceholder")}

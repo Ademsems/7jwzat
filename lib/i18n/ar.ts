@@ -631,6 +631,10 @@ export const ar: Record<string, string> = {
   "signup.countryHint": "تحدّد عملتك الافتراضية. يمكنك تغييرها لاحقاً من الإعدادات.",
   "signup.businessName": "اسم النشاط",
   "signup.businessNamePlaceholder": "مثال: صالون النور",
+  // PLACEHOLDER ARABIC — pending founder review
+  "signup.address": "عنوان النشاط",
+  "signup.addressPlaceholder": "مثال: شارع الرينبو، عمّان",
+  "signup.addressRequired": "عنوان النشاط مطلوب.",
   "signup.emailPlaceholder": "you@example.com",
   "signup.password": "كلمة المرور",
   "signup.passwordPlaceholder": "8 أحرف على الأقل",

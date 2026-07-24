@@ -38,6 +38,7 @@ export default function SignupPage() {
     password: "",
     confirmPassword: "",
     businessName: "",
+    address: "",
     country: DEFAULT_COUNTRY,
   });
   const [error, setError] = useState("");
@@ -48,6 +49,7 @@ export default function SignupPage() {
     if (form.password.length < 8) return "Password must be at least 8 characters.";
     if (form.password !== form.confirmPassword) return "Passwords do not match.";
     if (!form.businessName.trim()) return "Business name is required.";
+    if (!form.address.trim()) return t("signup.addressRequired");
     return null;
   }
 
@@ -71,6 +73,7 @@ export default function SignupPage() {
           business_type: selectedType ?? "other",
           country: form.country,
           currency: currencyForCountry(form.country),
+          address: form.address.trim(),
         });
         if (profileError) throw profileError;
 
@@ -219,6 +222,19 @@ export default function SignupPage() {
               onChange={e => setForm({ ...form, businessName: e.target.value })}
               placeholder={t("signup.businessNamePlaceholder")}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("signup.address")}</label>
+            <input
+              type="text"
+              required
+              dir="ltr"
+              autoComplete="off"
+              value={form.address}
+              onChange={e => setForm({ ...form, address: e.target.value })}
+              placeholder={t("signup.addressPlaceholder")}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-start focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
           <div>
